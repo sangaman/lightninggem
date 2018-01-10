@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8">
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Lightning Gem (Testnet)" />
+    <meta property="og:description" content="The Lightning Gem is a fun game of speculation where anyone can win bitcoins." />
+    <meta property="og:url" content="https://lightninggem.com" />
+    <meta property="og:image" content="https://lightninggem.com/img/gem.png" />
+    <meta property="og:site_name" content="Lightning Gem (Testnet)" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:description" content="The Lightning Gem is a fun game of speculation where anyone can win bitcoins." />
+    <meta name="twitter:title" content="Lightning Gem (Testnet)" />
+    <link rel="stylesheet" href="css/foundation.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
+    <title>Lightning Gem (Testnet)</title>
+    <meta name="description" content="The Lightning Gem is a fun game of speculation where anyone can win bitcoins." />
+</head>
+
+<body>
+    <!-- First Block Start -->
+    <div class="row">
+        <h1 class="twelve columns">This is the Magnificent Lightning Gem</h1>
+    </div>
+    <div class="row">
+        <div class="twelve columns">
+            <a href=""><img width="250" src="img/gem.png" alt="Magnificent Lightning Gem" /></a>
+        </div>
+    </div>
+    <section class="row">
+        <h2 class="twelve columns">
+            It is worth <span class="price"></span> and currently owned by:<br />
+            <a id="owner" target="/_blank"></a>
+        </h2>
+    </section>
+    <!--<section class="row">
+         <h4 class="six columns"><em></em><small> buyers have owned the gem</small></h4>
+         <h4 class="six columns"><em></em><small> total bitcoins paid out</small></h4>
+         </section>-->
+    <hr />
+    <!-- First Block End -->
+    <section class="row">
+        <!-- Own the gem Start -->
+        <h3 class="twelve columns">How to Buy the Gem</h3>
+        <div class="six columns">
+            <p>You can be the next owner of the gem! The current price is <span class="price"></span>. After your purchase, the gem's price will be <span id="new_price"></span> bits.</p>
+            <p>You will stay the owner until the next person buys it. We then will send <span class="payout"></span> bits back to you. <b>Yes, that's a 25% profit for you.</b></p>
+            <p>However, there's a <strong>1 in 32</strong> (3.125%) chance that the gem will reset each time it is purchased. It will also reset if there's no new buyer for 12 hours. Should your purchase result in a reset, you will lose your stake and the gem's price will start over at 1 bit.</p>
+            <p>Currently, the Lightning Gem works on the Bitcoin Testnet only.</p>
+        </div>
+        <!-- Own the gem End -->
+        <!-- How to buy End -->
+        <div class="six columns">
+            <div id="loading" hidden>
+                <img src="/img/loader.gif" alt="Loading indicator" />
+            </div>
+            <!-- Step One Start -->
+            <div id="step_one">
+                <p>
+                    To buy the gem, create a lightning payment request for <strong class="payout"></strong> bits with an expiry of at least 12 hours. Paste that below along with a name to display and, optionally, a website to link to. Click 'Submit' to create your unique invoice and pay it before someone else buys the gem! Keep your lightning node online and we'll pay you your profit if somebody buys the gem from you.
+                </p>
+                <p><code>lncli addinvoice --value <span id="payout_sats"></span> --expiry 86400</code>
+                    <p>
+                        <div id="not_valid" class="alert-box alert" style="display: none;"><span id="not_valid_msg"></span><br />Please try again!<a href="" class="close">&times;</a></div>
+                        <form>
+                            <span style="color:red;" id="invoice_err"></span>
+                            <textarea placeholder="Your lightning payment request (optional on testnet)" id="pay_req_out" maxlength=""></textarea>
+                            <input type="text" placeholder="Your name" id="name" maxlength="50" required/>
+                            <input type="text" placeholder="Your website (optional)" id="url" maxlength="50" />
+
+                            <a class="button" id="submit">Submit</a>
+                        </form>
+            </div>
+            <!-- Step One End -->
+            <!-- Step Two Start -->
+            <div id="step_two" hidden>
+                <div id="payment" class="panel">
+                    <p>Pay the following invoice for <strong class="price"></strong></p>
+                    <a class="button" id="pay_link">Pay With Your Wallet</a>
+                    <textarea id="pay_req" rows="5"></textarea>
+                    <img id="qr"></img>
+                    <p>Once payment is received, you'll own the gem!</p>
+                    <p id="pay_err"><a id="refresh_err"></a></p>
+                </div>
+                <p id="receipt" hidden>
+                    Payment received!
+                </p>
+                <p id="reset" hidden>
+                    Unlucky! Your payment was received but the gem randomly reset!
+                </p>
+                <a href="#" id="refresh">Click here to refresh</a>
+            </div>
+            <!-- Step Two End -->
+        </div>
+    </section>
+    <!-- How to buy End -->
+    <section class="row">
+        <div class="title">
+            <h4>FAQ</h4>
+        </div>
+        <div class="content">
+            <h5>What is this all about?</h5>
+            <p>The Lightning Gem is a fun game as well as an exercise in psychology. You can think of it as a series of <a href="http://en.wikipedia.org/wiki/Tulip_mania" target="_blank">speculative bubbles</a>.</p>
+            <h5>What is the lightning network?</h5>
+            <p>The <a href="https://lightning.network/">lightning network</a> is a second layer payment network on top of bitcoin that enables microtransactions and instant settlement. This site uses <a href="https://github.com/lightningnetwork/lnd">lnd</a> for lightning functionality.</p>
+            <h5>Why should I buy the gem?</h5>
+            <p>To advertise your name (or link) under it and show off that you own the gem. Not to mention you can make a handsome profit when a new buyer comes in!</p>
+            <h5>How do I create an invoice with an expiry of at least 12 hours?</h5>
+            <p>Using the command line interface with lnd, you can create a long-lived invoice by setting the <code>expiry</code> parameter to a value over 43200. For example, to create an invoice for 1.25 bits that's good for a day use <code>lncli addinvoice --value 125 --expiry 86400</code>.
+                <h5>Why can't I complete my payment to buy the gem?</h5>
+                <p>Your node may be unable to find a payment path to ours. You can open a channel with us directly at <code>023c1fc1ef2d9a555693cf0fdc39b66d934dfc07bc0b1ee050fd3f4aeb773b9438@35.185.13.214</code>.
+                    <h5>How does the price increase?</h5>
+                    <p>Every time the gem changes hands its worth increases by 30% rounded to the nearest satoshi.</p>
+                    <h5>How do random resets work?</h5>
+                    <p>We take the payment request you generated and append a secret string of characters as a <a href="https://en.wikipedia.org/wiki/Cryptographic_nonce">nonce</a>, then we hash that using SHA-256. We convert the first byte of the hash to a number from 0 to 255. If that number is less than 8 (which will happen 1 in 32 times), we reset the gem. We use a different secret every day based on UTC time, and every day we will publish the secret for the previous day <a href="secrets.html">here</a> so you can check our work for yourself. A list of the hashes for all secrets we will use through 2018 is available as a gist <a href="https://gist.github.com/sangaman/00ec664d22548c7f2517a79d3fd31bf4">here</a> so you can verify that we're not changing the secret strings after the fact.</p>
+                    <h5>What happens if no one after me buys the gem?</h5>
+                    <p>If there's no new buyer for more than 12 hours, the gem will reset automatically to 1 bit and you'll lose your stake.</p>
+                    <h5>What's a bit?</h5>
+                    <p>A bit, as specified in <a href="https://github.com/bitcoin/bips/blob/master/bip-0176.mediawiki">BIP176</a>, is 1 millionth of a bitcoin - or 100 satoshis.</p>
+                    <h5>What happens if I send payment but someone buys the gem before me?</h5>
+                    <p>The website will automatically indicate if someone else buys the gem after you have submitted a request to buy the gem, so if you check this page before submitting your payment you can prevent this from happening. If it happens anyway, <a href="mailto:bitcoingem@gmail.com">e-mail us</a> for a refund (no testnet refunds).</p>
+                    <h5>Someone bought the gem from me, but I didn't get paid!</h5>
+                    <p>We probably weren't able to pay your invoice - either your lightning node went offline or we couldn't find a path to you. <a href="mailto:bitcoingem@gmail.com">E-mail us</a> and we'll pay you manually.</p>
+                    <h5>I bought the gem but changed my mind, can you refund me?</h5>
+                    <p>Once you are the owner of the gem, we can't refund you because the previous owner already will already have been paid.</p>
+                    <h5>Who are you, and why should I trust you?</h5>
+                    <p>This site is created and operated by <a href="https://twitter.com/sangaman">Daniel McNally</a>. It is a remake and continuation of the original <a href="https://bitcointalk.org/index.php?topic=138749.0">Bitcoin Gem</a>. We weren't the creators of the Bitcoin Gem, but we were its second and most recent owners and operated it honestly until it was eventually shut down due to lack of interest.</p>
+                    <h5>I have another question, how can I contact you?</h5>
+                    <p>Please send an email to <a href="mailto:bitcoingem@gmail.com">bitcoingem@gmail.com</a> or contact us via Twitter <a href="http://twitter.com/bitcoingem" target="_blank">@bitcoingem</a>. We'd love to hear from you and answer any questions you may have!</p>
+        </div>
+    </section>
+    <footer class="disclaimer"><strong>Disclaimer:</strong> The Lightning Gem is a game using testnet bitcoins and meant for entertainment purposes only.</footer>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="js/foundation.min.js"></script>
+    <script src="js/qrious.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
