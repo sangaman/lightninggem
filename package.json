@@ -1,6 +1,6 @@
 {
   "name": "lightninggem",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The Lightning Gem",
   "main": "lightninggem.js",
   "dependencies": {
@@ -9,21 +9,30 @@
     "express": "^4.16.2",
     "grpc": "^1.8.0",
     "helmet": "^3.9.0",
-    "memory-cache": "^0.2.0",
     "mongodb": "^3.0.1"
   },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "devDependencies": {
+    "mocha": "^4.1.0"
   },
-  "repository" :
-  { 
-    "type" : "git", 
-    "url" : "https://github.com/sangaman/lightninggem"
+  "engines": {
+    "node": ">=7.6.0"
+  },
+  "scripts": {
+    "test": "./node_modules/.bin/mocha --reporter spec --exit"
   },
   "keywords": [
     "bitcoin",
-    "lightning"
+    "lightning",
+    "lightninggem"
   ],
-  "author": "Daniel McNally"
+  "author": "Daniel McNally",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sangaman/lightninggem.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sangaman/lightninggem/issues"
+  },
+  "homepage": "https://github.com/sangaman/lightninggem#readme"
 }
