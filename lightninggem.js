@@ -9,7 +9,6 @@ const helmet = require('helmet');
 
 const LND_HOMEDIR = process.env.LND_HOMEDIR;
 const LN_GEM_PORT = process.env.LN_GEM_PORT;
-const LN_GEM_INTERNAL_PORT = process.env.LN_GEM_INTERNAL_PORT;
 const DB_NAME = process.env.DB_NAME;
 
 const lndCert = fs.readFileSync(LND_HOMEDIR + 'tls.cert');
@@ -47,9 +46,14 @@ var gem;
  */
 var listeners = {};
 
-const http = require('http');
-http.createServer(async (req, res) => {
-  //check for timeout on internal requests
+/**
+ * An event subscription to lightning invoice events
+ */
+var invoiceSubscription = subscribeInvoices();
+
+//timer function to run every 5 minutes
+setInterval(async () => {
+  //check for timeout
   if (gem.owner && gem.date < (new Date().getTime() - 12 * 60 * 60 * 1000)) {
     try {
       gem = await createGem(null, gem, true);
@@ -57,10 +61,13 @@ http.createServer(async (req, res) => {
       console.log("gem timed out");
     } catch (err) {
       console.error("error on gem reset: " + err);
-    };
+    }
   }
-  res.end();
-}).listen(LN_GEM_INTERNAL_PORT);
+  
+  //if invoiceSubscription is undefined, try to resubscribe
+  if(!invoiceSubscription)
+    invoiceSubscription = subscribeInvoices();
+}, 5 * 60 * 1000);
 
 
 MongoClient.connect(dbUrl).then((connection) => {
@@ -95,6 +102,8 @@ app.post('/invoice', urlencodedParser, (req, res) => {
     res.status(400).end(); //this shouldn't happen, there's client-side validation to prevent this
   } else if (gem._id != req.body.gem_id) {
     res.status(400).send("Gem out of sync, try refreshing");
+  } if(!invoiceSubscription) {
+    res.status(503).send("LND on server is down, try again later.");
   } else {
     //valid so far, check for and validate payment request
     let responseBody;
@@ -126,15 +135,6 @@ app.post('/invoice', urlencodedParser, (req, res) => {
       res.status(400).send(err);
     });
   }
-});
-
-const invoiceSubscription = lightning.subscribeInvoices({}, meta);
-invoiceSubscription.on('data', invoiceHandler).on('end', () => {
-  console.log("subscribeInvoices ended");
-}).on('status', (status) => {
-  console.log("subscribeInvoices status: " + status);
-}).on('error', (error) => {
-  console.error("subscribeInvoices error: " + error);
 });
 
 /**
@@ -281,7 +281,7 @@ async function getGem() {
       _id: -1
     }).limit(1).toArray().then((gems) => {
       if (gems[0])
-        resolve(gems[0])
+        resolve(gems[0]);
       else {
         //this is the very first gem in the series!
         const firstGem = {
@@ -321,7 +321,7 @@ async function createGem(invoice, oldGem, reset) {
     db.collection('gems').insertOne(newGem).then(() => {
       resolve(newGem);
     }).catch((err) => {
-      reject(err)
+      reject(err);
     });
   });
 }
@@ -379,6 +379,21 @@ function sendEvent(event, r_hash) {
   }
 }
 
+/**
+ * Returns a subscription on lightning invoice events.
+ * @returns - The invoice event subscription
+ */
+function subscribeInvoices() {
+  return lightning.subscribeInvoices({}, meta).on('data', invoiceHandler).on('end', () => {
+    console.log("subscribeInvoices ended");
+  }).on('status', (status) => {
+    console.log("subscribeInvoices status: " + status);
+  }).on('error', (error) => {
+    console.error("subscribeInvoices error: " + error);
+    invoiceSubscription = undefined;
+  });
+}
+
 module.exports = {
   getGem: getGem,
   //validatePayReq: validatePayReq,
@@ -387,4 +402,4 @@ module.exports = {
   //sendPayment: sendPayment,
   //addInvoice: addInvoice,
   invoiceHandler: invoiceHandler
-}
+};

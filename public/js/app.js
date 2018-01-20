@@ -107,7 +107,7 @@ $(document).ready(function() {
           }
         };
       } else {
-        console.log("Your browser doesn't support SSE")
+        console.log("Your browser doesn't support SSE");
       }
     }).fail(function(response) {
       if (response.responseText)

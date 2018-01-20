@@ -1,7 +1,7 @@
 {
   "name": "lightninggem",
-  "version": "0.1.1",
-  "description": "The Lightning Gem",
+  "version": "0.1.2",
+  "description": "A game of speculation using bitcoin and the lightning network",
   "main": "lightninggem.js",
   "dependencies": {
     "body-parser": "^1.18.2",

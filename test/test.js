@@ -1,5 +1,4 @@
 process.env.LN_GEM_PORT = 13371;
-process.env.LN_GEM_INTERNAL_PORT = 13372;
 process.env.DB_NAME = 'lightninggemmochatest';
 const assert = require('assert');
 const lightningGem = require('../lightninggem.js');
