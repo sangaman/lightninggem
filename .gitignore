@@ -58,3 +58,4 @@ typings/
 .env
 
 rpc.proto
+secrets.txt

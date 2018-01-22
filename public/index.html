@@ -69,7 +69,7 @@
                     <span style="color:red;" id="invoice_err"></span>
                     <textarea placeholder="Your lightning payment request (optional on testnet)" id="pay_req_out" maxlength=""></textarea>
                     <input type="text" placeholder="Your name" id="name" maxlength="50" required/>
-                    <input type="text" placeholder="Your website (optional)" id="url" maxlength="50" />
+                    <input type="text" placeholder="Your website (optional)" id="url" maxlength="150" />
 
                     <a class="button" id="submit">Submit</a>
                 </form>
@@ -115,7 +115,7 @@
             <h5>How does the price increase?</h5>
             <p>Every time the gem changes hands its worth increases by 30% rounded to the nearest satoshi.</p>
             <h5>How do random resets work?</h5>
-            <p>We take the payment request you generated and append a secret string of characters as a <a href="https://en.wikipedia.org/wiki/Cryptographic_nonce">nonce</a>, then we hash that using SHA-256. We convert the first byte of the hash to a number from 0 to 255. If that number is less than 8 (which will happen 1 in 32 times), we reset the gem. We use a different secret every day based on UTC time, and every day we will publish the secret for the previous day <a href="secrets.html">here</a> so you can check our work for yourself. A list of the hashes for all secrets we will use through 2018 is available as a gist <a href="https://gist.github.com/sangaman/00ec664d22548c7f2517a79d3fd31bf4">here</a> so you can verify that we're not changing the secret strings after the fact.</p>
+            <p>We take the payment request you generated and append a secret string of characters as a <a href="https://en.wikipedia.org/wiki/Cryptographic_nonce">nonce</a>, then we hash that using SHA-256. We convert the first byte of the hash to a number from 0 to 255. If that number is less than 8 - which will happen 1 in 32 times - we reset the gem. We use a different secret every day based on UTC time, and every day we will publish the secret for the previous day <a href="secrets.txt">here</a> so you can check our work for yourself. A list of the SHA-256 hashes for all secrets we will use through 2018 is available as a gist <a href="https://gist.github.com/sangaman/00ec664d22548c7f2517a79d3fd31bf4">here</a>.</p>
             <h5>What happens if no one after me buys the gem?</h5>
             <p>If there's no new buyer for more than 12 hours, the gem will reset automatically to 1 bit and you'll lose your stake.</p>
             <h5>What's a bit?</h5>

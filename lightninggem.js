@@ -6,6 +6,7 @@ const grpc = require('grpc');
 const fs = require("fs");
 const crypto = require('crypto');
 const helmet = require('helmet');
+const schedule = require('node-schedule');
 
 const LND_HOMEDIR = process.env.LND_HOMEDIR;
 const LN_GEM_PORT = process.env.LN_GEM_PORT;
@@ -69,6 +70,20 @@ setInterval(async () => {
     invoiceSubscription = subscribeInvoices();
 }, 5 * 60 * 1000);
 
+//scheduled function to run once a day
+var dailyRule = new schedule.RecurrenceRule();
+dailyRule.hour = 12;
+dailyRule.minute = 0;
+const secretsStream = fs.createWriteStream("public/secrets.txt", {flags: 'a'});
+schedule.scheduleJob(dailyRule, async () => {
+  //publish yesterday's secret
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const secret = await db.collection('secrets').findOne({
+    _id: yesterday.toISOString().split('T')[0]
+  });
+  secretsStream.write(secret._id + ' ' + secret.secret + '\n');
+});
 
 MongoClient.connect(dbUrl).then((connection) => {
   db = connection.db(DB_NAME);
@@ -98,11 +113,12 @@ app.get('/listen/:r_hash', (req, res) => {
 });
 
 app.post('/invoice', urlencodedParser, (req, res) => {
-  if (!req.body.name || req.body.name.length > 50 || req.body.url && req.body.url.length > 50) {
+  console.log("invoice request: " + JSON.stringify(req.body));
+  if (!req.body.name || req.body.name.length > 50 || (req.body.url && req.body.url.length > 150)) {
     res.status(400).end(); //this shouldn't happen, there's client-side validation to prevent this
   } else if (gem._id != req.body.gem_id) {
     res.status(400).send("Gem out of sync, try refreshing");
-  } if(!invoiceSubscription) {
+  } else if(!invoiceSubscription) {
     res.status(503).send("LND on server is down, try again later.");
   } else {
     //valid so far, check for and validate payment request
@@ -127,7 +143,6 @@ app.post('/invoice', urlencodedParser, (req, res) => {
         invoice.pay_req_out = req.body.pay_req_out;
 
       return db.collection('invoices').insertOne(invoice).then(() => {
-        console.log("invoice added: " + JSON.stringify(invoice));
         res.status(200).send(responseBody);
       });
     }).catch((err) => {
@@ -387,7 +402,7 @@ function subscribeInvoices() {
   return lightning.subscribeInvoices({}, meta).on('data', invoiceHandler).on('end', () => {
     console.log("subscribeInvoices ended");
   }).on('status', (status) => {
-    console.log("subscribeInvoices status: " + status);
+    console.log("subscribeInvoices status: " + JSON.stringify(status));
   }).on('error', (error) => {
     console.error("subscribeInvoices error: " + error);
     invoiceSubscription = undefined;
