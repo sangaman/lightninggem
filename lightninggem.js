@@ -42,6 +42,11 @@ var db;
 var gem;
 
 /**
+ * The sum of all outgoing payments
+ */
+var paidOutSum;
+
+/**
  * A map of invoice r_hashes to response objects for clients 
  * listening for when those invoices are settled or terminated
  */
@@ -52,7 +57,7 @@ var listeners = {};
  */
 var invoiceSubscription = subscribeInvoices();
 
-//timer function to run every 5 minutes
+//timer function to run every 2 minutes
 setInterval(async () => {
   //check for timeout
   if (gem.owner && gem.date < (new Date().getTime() - 12 * 60 * 60 * 1000)) {
@@ -68,7 +73,7 @@ setInterval(async () => {
   //if invoiceSubscription is undefined, try to resubscribe
   if(!invoiceSubscription)
     invoiceSubscription = subscribeInvoices();
-}, 5 * 60 * 1000);
+}, 2 * 60 * 1000);
 
 //scheduled function to run once a day
 var dailyRule = new schedule.RecurrenceRule();
@@ -87,9 +92,8 @@ schedule.scheduleJob(dailyRule, async () => {
 
 MongoClient.connect(dbUrl).then((connection) => {
   db = connection.db(DB_NAME);
-  return getGem();
-}).then((currentGem) => {
-  gem = currentGem;
+  return init()
+}).then(() => {
   app.listen(LN_GEM_PORT, () => {
     console.log('App listening on port ' + LN_GEM_PORT);
   });
@@ -98,8 +102,11 @@ MongoClient.connect(dbUrl).then((connection) => {
 });
 
 
-app.get('/gem', (req, res) => {
-  res.status(200).json(gem);
+app.get('/status', (req, res) => {
+  res.status(200).json({
+    gem: gem,
+    paidOutSum: paidOutSum
+  });
 });
 
 app.get('/listen/:r_hash', (req, res) => {
@@ -207,14 +214,21 @@ async function invoiceHandler(data) {
         };
         if (reset)
           gemUpdate.$set.reset = true;
-        if (oldGem.pay_req_out) {
-          await sendPayment(oldGem.pay_req_out);
-          gemUpdate.$set.paid_out = true;
-          console.log("paid " + oldGem.pay_req_out);
+        try {
+          if (oldGem.pay_req_out) {
+            const paymentResponse = await sendPayment(oldGem.pay_req_out);
+            console.log("payment response: " + JSON.stringify(paymentResponse));
+            gemUpdate.$set.paid_out = true;
+            paidOutSum += Math.round(oldGem.price * 1.25);
+            console.log("paid " + oldGem.pay_req_out);
+          }
         }
-        db.collection('gems').updateOne({
-          _id: oldGem._id
-        }, gemUpdate);
+        finally {
+          //we want to update the old gem even if the sendpayment call above fails
+          db.collection('gems').updateOne({
+            _id: oldGem._id
+          }, gemUpdate);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -230,11 +244,14 @@ async function sendPayment(pay_req) {
   return new Promise((resolve, reject) => {
     lightning.sendPaymentSync({
       payment_request: pay_req
-    }, meta, (err) => {
+    }, meta, (err, response) => {
       if (err)
         reject(err);
       else {
-        resolve();
+        if(response.payment_error)
+          reject(response.payment_error)
+        else
+          resolve(response);
       }
     });
   });
@@ -286,25 +303,32 @@ async function validatePayReq(pay_req) {
 }
 
 /**
- * Fetches the most recent gem from the database.
- * If no gem exists, it creates one.
- * @returns - The most recent gem
+ * Fetches the most recent gem from the database. If no gem
+ * exists, it creates one. Also computes lifetime payouts.
  */
-async function getGem() {
+async function init() {
   return new Promise((resolve, reject) => {
     db.collection('gems').find().sort({
       _id: -1
-    }).limit(1).toArray().then((gems) => {
-      if (gems[0])
-        resolve(gems[0]);
+    }).toArray().then((gems) => {
+      paidOutSum = 0;
+      if (gems[0]) {
+        gem = gems[0];
+        for(let n=0; n<gems.length; n++) {
+          if(gems[n].paid_out)
+            paidOutSum += Math.round(gems[n+1].price * 1.25);
+        }
+        resolve();
+      }
       else {
         //this is the very first gem in the series!
-        const firstGem = {
+        gem = {
           price: 100,
-          _id: 1
+          _id: 1,
+          date: new Date().getTime()
         };
         db.collection('gems').insertOne(firstGem).then(() => {
-          resolve(firstGem);
+          resolve();
         });
       }
     }).catch((err) => {
@@ -401,6 +425,7 @@ function sendEvent(event, r_hash) {
 function subscribeInvoices() {
   return lightning.subscribeInvoices({}, meta).on('data', invoiceHandler).on('end', () => {
     console.log("subscribeInvoices ended");
+    invoiceSubscription = undefined;
   }).on('status', (status) => {
     console.log("subscribeInvoices status: " + JSON.stringify(status));
   }).on('error', (error) => {
@@ -410,7 +435,6 @@ function subscribeInvoices() {
 }
 
 module.exports = {
-  getGem: getGem,
   //validatePayReq: validatePayReq,
   createGem: createGem,
   //purchaseGem: purchaseGem,

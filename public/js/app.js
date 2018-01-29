@@ -32,22 +32,23 @@ function refresh() {
   $("#url").val('');
   $("#node").val('');
   $('#qr').hide();
-  $.get('/gem', function(gem) {
-    if (gem.owner) {
-      $("#owner").text(gem.owner);
-      if (gem.url)
-        $("#owner").prop("href", gem.url);
+  $.get('/status', function(status) {
+    if (status.gem.owner) {
+      $("#owner").text(status.gem.owner);
+      if (status.gem.url)
+        $("#owner").prop("href", status.gem.url);
       else
         $("#owner").removeAttr("href");
     } else
       $("#owner").text("Nobody - You can be the first to own it!");
-    price = gem.price;
-    $(".price").text(price / 100 + ' bit' + ((price === 100) ? '' : 's'));
-    $(".payout").text(Math.round(1.25 * price) / 100);
+    $("#owner_count").text(status.gem._id);
+    $("#paid_out_sum").text((status.paidOutSum / 100).toLocaleString());
+    price = status.gem.price;
+    $(".price").text((price / 100).toLocaleString() + ' bit' + ((price === 100) ? '' : 's'));
+    $(".payout").text((Math.round(1.25 * price) / 100).toLocaleString());
     $("#payout_sats").text(Math.round(1.25 * price));
-    $("#new_price").text(Math.round(price * 1.3) / 100);
-    $("#pay_req_amt").text(Math.round(price * 1.25) / 100);
-    gem_id = gem._id;
+    $("#new_price").text((Math.round(price * 1.3) / 100).toLocaleString());
+    gem_id = status.gem._id;
   });
 }
 refresh();
