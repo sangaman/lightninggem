@@ -1,43 +1,70 @@
-process.env.LN_GEM_PORT = 13371;
-process.env.DB_NAME = 'lightninggemmochatest';
+const DB_NAME = 'lightninggemmochatest';
+process.env.DB_NAME = DB_NAME; //use a separate database for mocha testing
+const INITIAL_GEM_PRICE = 100;
+
 const assert = require('assert');
-const lightningGem = require('../lightninggem.js');
+const http = require('http');
+const request = require('supertest');
 
 const MongoClient = require('mongodb').MongoClient;
 const dbUrl = "mongodb://127.0.0.1:27017";
 
 describe('LightningGem', () => {
-  let gem;
-  let db;
+  let lightningGem;
+  let app;
+  let r_hash;
 
   before(async () => {
     const connection = await MongoClient.connect(dbUrl);
-    db = connection.db('lightninggemmochatest');
+    const db = connection.db(DB_NAME);
+    
     //start with a fresh database
-    await db.collection('gems').drop();
+    await db.collection('gems').remove();
+    await db.collection('invoices').remove();
     connection.close();
+    lightningGem = require('../lightninggem.js');
+    app = lightningGem.app;
   });
 
-  it('should create the first gem', async () => {
-    gem = await lightningGem.getGem();
-    assert.equal(gem._id, 1);
-    assert.equal(gem.price, 100);
+  it('should GET the initial status', () => {
+    return request(app) 
+      .get('/status')
+      .set('Accept', 'application/json')
+      .expect(200)
+      .expect('Content-Type', /json/)
+      .then((status) => {
+        assert.equal(status.body.gem._id, 1);
+        assert.equal(status.body.gem.price, INITIAL_GEM_PRICE);
+      });
   });
 
-  it('should create a new gem', async () => {
-    const invoice = {
+  it('should POST an invoice, simulate a payment, and transfer ownership', () => {
+    const req = {
       name: 'mocha',
-    };
-    gem = await lightningGem.createGem(invoice, gem, false);
-    assert.equal(gem._id, 2);
-    assert.equal(gem.price, 130);
-    assert.equal(gem.owner, 'mocha');
-  });
-
-  it('should get the new gem', async () => {
-    gem = await lightningGem.getGem();
-    assert.equal(gem._id, 2);
-    assert.equal(gem.price, 130);
-    assert.equal(gem.owner, 'mocha');
+      gem_id: 1,
+      value: INITIAL_GEM_PRICE
+    }
+    return request(app)
+      .post('/invoice')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(req)
+      .then((invoice) => {
+        const paidInvoice = {
+          settled: true,
+          r_hash: invoice.body.r_hash
+        };
+        return lightningGem.invoiceHandler(paidInvoice);
+      }).then(() => {
+        request(app)
+          .get('/status')
+          .set('Accept', 'application/json')
+          .expect(200)
+          .expect('Content-Type', /json/)
+          .then((status) => {
+            assert.equal(status.gem._id, 2);
+            assert.equal(status.gem.price, 130);
+          });
+      })
   });
 });

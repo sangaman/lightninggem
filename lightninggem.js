@@ -94,9 +94,12 @@ MongoClient.connect(dbUrl).then((connection) => {
   db = connection.db(DB_NAME);
   return init()
 }).then(() => {
-  app.listen(LN_GEM_PORT, () => {
-    console.log('App listening on port ' + LN_GEM_PORT);
-  });
+  if(!module.parent) { 
+    //only listen when started directly
+    app.listen(LN_GEM_PORT, () => {
+      console.log('App listening on port ' + LN_GEM_PORT);
+    });
+  }
 }).catch((err) => {
   console.error("Error on initialization: " + err);
 });
@@ -139,7 +142,7 @@ app.post('/invoice', urlencodedParser, (req, res) => {
         payment_request: response.payment_request
       };
 
-      const invoice = {
+      let invoice = {
         gemId: req.body.gem_id,
         name: req.body.name,
         url: req.body.url,
@@ -148,10 +151,11 @@ app.post('/invoice', urlencodedParser, (req, res) => {
       };
       if (req.body.pay_req_out)
         invoice.pay_req_out = req.body.pay_req_out;
-
-      return db.collection('invoices').insertOne(invoice).then(() => {
-        res.status(200).send(responseBody);
-      });
+      return invoice;
+    }).then((invoice) => {
+      return db.collection('invoices').insertOne(invoice);
+    }).then(() => {
+      res.status(200).json(responseBody);
     }).catch((err) => {
       console.error(err);
       res.status(400).send(err);
@@ -327,7 +331,7 @@ async function init() {
           _id: 1,
           date: new Date().getTime()
         };
-        db.collection('gems').insertOne(firstGem).then(() => {
+        db.collection('gems').insertOne(gem).then(() => {
           resolve();
         });
       }
@@ -435,10 +439,6 @@ function subscribeInvoices() {
 }
 
 module.exports = {
-  //validatePayReq: validatePayReq,
-  createGem: createGem,
-  //purchaseGem: purchaseGem,
-  //sendPayment: sendPayment,
-  //addInvoice: addInvoice,
+  app: app,
   invoiceHandler: invoiceHandler
 };
