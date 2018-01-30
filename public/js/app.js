@@ -15,7 +15,6 @@ function showInvoice(invoice) {
   $('#qr').show();
   $("#pay_req").show();
   $("#step_two").fadeIn('fast');
-  //$("#step_one").fadeOut('fast');
   $('#loading').fadeOut('fast');
 }
 
@@ -33,22 +32,44 @@ function refresh() {
   $("#node").val('');
   $('#qr').hide();
   $.get('/status', function(status) {
-    if (status.gem.owner) {
-      $("#owner").text(status.gem.owner);
-      if (status.gem.url)
-        $("#owner").prop("href", status.gem.url);
+    var gem = status.recentGems[0];
+    if (gem.owner) {
+      $("#owner").text(gem.owner);
+      if (gem.url)
+        $("#owner").prop("href", gem.url);
       else
         $("#owner").removeAttr("href");
     } else
       $("#owner").text("Nobody - You can be the first to own it!");
-    $("#owner_count").text(status.gem._id);
+    $("#owner_count").text(gem._id);
     $("#paid_out_sum").text((status.paidOutSum / 100).toLocaleString());
-    price = status.gem.price;
+    price = gem.price;
     $(".price").text((price / 100).toLocaleString() + ' bit' + ((price === 100) ? '' : 's'));
     $(".payout").text((Math.round(1.25 * price) / 100).toLocaleString());
     $("#payout_sats").text(Math.round(1.25 * price));
     $("#new_price").text((Math.round(price * 1.3) / 100).toLocaleString());
-    gem_id = status.gem._id;
+    gem_id = gem._id;
+
+    var recentGemsHtml = "";
+    $.each(status.recentGems.slice(1), function(index, value) {
+      recentGemsHtml += "<tr><td>";
+      recentGemsHtml += new Date(value.date).toLocaleString() + "</td><td>";
+      if (value.url)
+        recentGemsHtml += '<a href="' + value.url + '">';
+      if (value.owner)
+        recentGemsHtml += value.owner;
+      if (value.url)
+        recentGemsHtml += "</a>";
+      recentGemsHtml += "</td><td>" + value.price / 100 + " bits</td><td>";
+      if (value.reset)
+        recentGemsHtml += '<span class="reset">SOLD & RESET</span>';
+      else if (!value.bought)
+        recentGemsHtml += '<span class="fail">TIMED OUT</span>';
+      else
+        recentGemsHtml += 'SOLD!';
+      recentGemsHtml += "</td></tr>";
+    });
+    $("#recent_gems").html(recentGemsHtml);
   });
 }
 refresh();
@@ -73,12 +94,14 @@ $(document).ready(function() {
     $('#loading').fadeIn('fast');
     $('#step_one').fadeOut('fast');
 
+    var pay_req_out = $("#pay_req_out").val()
+    if (pay_req_out.startsWith('lightning://'))
+      pay_req_out = pay_req_out.substring(12);
     $.post('/invoice', {
       name: $("#name").val(),
       url: $("#url").val(),
-      pay_req_out: $("#pay_req_out").val(),
-      gem_id: gem_id,
-      value: price
+      pay_req_out: pay_req_out,
+      gem_id: gem_id
     }, function(invoice) {
       showInvoice(invoice);
       if (!!window.EventSource) {

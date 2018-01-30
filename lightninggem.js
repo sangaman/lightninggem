@@ -20,13 +20,13 @@ if (!fs.existsSync(logDir)) {
 }
 
 const tsFormat = () => (new Date()).toLocaleString();
-const logger = new (winston.Logger)({
+const logger = new(winston.Logger)({
   transports: [
-    new (winston.transports.Console)({
+    new(winston.transports.Console)({
       timestamp: tsFormat,
-      colorize: true 
+      colorize: true
     }),
-    new (winston.transports.File)({
+    new(winston.transports.File)({
       filename: `${logDir}/lightninggem.log`,
       timestamp: tsFormat
     })
@@ -70,6 +70,13 @@ var gem;
 var paidOutSum;
 
 /**
+ * An array of recent gems
+ */
+var recentGems;
+
+const RECENT_GEMS_MAX_LENGTH = 6;
+
+/**
  * A map of invoice r_hashes to response objects for clients 
  * listening for when those invoices are settled or terminated
  */
@@ -92,9 +99,9 @@ setInterval(async () => {
       logger.error("error on gem reset: " + err);
     }
   }
-  
+
   //if invoiceSubscription is undefined, try to resubscribe
-  if(!invoiceSubscription)
+  if (!invoiceSubscription)
     invoiceSubscription = subscribeInvoices();
 }, 2 * 60 * 1000);
 
@@ -102,7 +109,9 @@ setInterval(async () => {
 var dailyRule = new schedule.RecurrenceRule();
 dailyRule.hour = 12;
 dailyRule.minute = 0;
-const secretsStream = fs.createWriteStream("public/secrets.txt", {flags: 'a'});
+const secretsStream = fs.createWriteStream("public/secrets.txt", {
+  flags: 'a'
+});
 schedule.scheduleJob(dailyRule, async () => {
   // publish yesterday's secret
   const yesterday = new Date();
@@ -117,7 +126,7 @@ MongoClient.connect(dbUrl).then((connection) => {
   db = connection.db(DB_NAME);
   return init()
 }).then(() => {
-  if(!module.parent) { 
+  if (!module.parent) {
     // only listen when started directly
     app.listen(LN_GEM_PORT, () => {
       logger.info('App listening on port ' + LN_GEM_PORT);
@@ -130,7 +139,7 @@ MongoClient.connect(dbUrl).then((connection) => {
 
 app.get('/status', (req, res) => {
   res.status(200).json({
-    gem: gem,
+    recentGems: recentGems,
     paidOutSum: paidOutSum
   });
 });
@@ -151,13 +160,13 @@ app.post('/invoice', urlencodedParser, (req, res) => {
     res.status(400).end(); //this shouldn't happen, there's client-side validation to prevent this
   } else if (gem._id != req.body.gem_id) {
     res.status(400).send("Gem out of sync, try refreshing");
-  } else if(!invoiceSubscription) {
+  } else if (!invoiceSubscription) {
     res.status(503).send("LND on server is down, try again later.");
   } else {
     // valid so far, check for and validate payment request
     let responseBody;
     validatePayReq(req.body.pay_req_out).then(() => {
-      return addInvoice(req.body.value);
+      return addInvoice(gem.price);
     }).then((response) => {
       const r_hash = response.r_hash.toString('hex');
       responseBody = {
@@ -170,7 +179,7 @@ app.post('/invoice', urlencodedParser, (req, res) => {
         name: req.body.name,
         url: req.body.url,
         r_hash: response.r_hash.toString('hex'),
-        value: req.body.value,
+        value: gem.price,
       };
       if (req.body.pay_req_out)
         invoice.pay_req_out = req.body.pay_req_out;
@@ -189,6 +198,8 @@ app.post('/invoice', urlencodedParser, (req, res) => {
 /**
  * Handler for updates on lightning invoices
  * @param data - The data from the lightning invoice subscription
+ * @returns - A promise that resolves once the invoice is handled
+ * and updated, or undefined if the invoice was not settled
  */
 async function invoiceHandler(data) {
   if (data.settled) {
@@ -201,7 +212,6 @@ async function invoiceHandler(data) {
       const invoice = await db.collection('invoices').findOne(invoiceQuery);
       if (invoice) {
         logger.info("invoice settled: " + JSON.stringify(invoice));
-        const oldGem = gem;
         let newVals = {
           $set: {}
         };
@@ -223,7 +233,7 @@ async function invoiceHandler(data) {
             if (firstByteInt < 8)
               reset = true;
           }
-          purchaseGem(invoice, r_hash, reset);
+          await purchaseGem(invoice, r_hash, reset);
         } else {
           logger.info("stale invoice paid");
           sendEvent("stale", r_hash);
@@ -231,31 +241,7 @@ async function invoiceHandler(data) {
         }
 
         //update paid invoice
-        db.collection('invoices').updateOne(invoiceQuery, newVals);
-
-        //update previous gem to mark it as bought and pay out previous owner 
-        let gemUpdate = {
-          $set: {
-            bought: true
-          }
-        };
-        if (reset)
-          gemUpdate.$set.reset = true;
-        try {
-          if (oldGem.pay_req_out) {
-            const paymentResponse = await sendPayment(oldGem.pay_req_out);
-            logger.debug("payment response: " + JSON.stringify(paymentResponse));
-            gemUpdate.$set.paid_out = true;
-            paidOutSum += Math.round(oldGem.price * 1.25);
-            logger.info("paid " + oldGem.pay_req_out);
-          }
-        }
-        finally {
-          //we want to update the old gem even if the sendpayment call above fails
-          db.collection('gems').updateOne({
-            _id: oldGem._id
-          }, gemUpdate);
-        }
+        return db.collection('invoices').updateOne(invoiceQuery, newVals);
       }
     } catch (err) {
       logger.error(err);
@@ -266,6 +252,7 @@ async function invoiceHandler(data) {
 /**
  * Sends a lightning payment
  * @param pay_req - The payment request to pay
+ * @returns - A promise that resolves when the payment is sent
  */
 async function sendPayment(pay_req) {
   return new Promise((resolve, reject) => {
@@ -275,7 +262,7 @@ async function sendPayment(pay_req) {
       if (err)
         reject(err);
       else {
-        if(response.payment_error)
+        if (response.payment_error)
           reject(response.payment_error)
         else
           resolve(response);
@@ -287,6 +274,7 @@ async function sendPayment(pay_req) {
 /**
  * Adds an invoice to lnd.
  * @param value - The amount in satoshis for the invoice
+ * @returns - A promise that resolves when the invoice is added
  */
 async function addInvoice(value) {
   return new Promise((resolve, reject) => {
@@ -304,7 +292,8 @@ async function addInvoice(value) {
 
 /**
  * Validates an outgoing payment request. 
- * @param pay_req_out - The payment request to validate 
+ * @param pay_req_out - The payment request to validate
+ * @returns - A promise that resolves when the request is validated.
  */
 async function validatePayReq(pay_req) {
   return new Promise((resolve, reject) => {
@@ -332,6 +321,7 @@ async function validatePayReq(pay_req) {
 /**
  * Fetches the most recent gem from the database. If no gem
  * exists, it creates one. Also computes lifetime payouts.
+ * @returns - A promise that resolves when the gem is initialized
  */
 async function init() {
   return new Promise((resolve, reject) => {
@@ -340,20 +330,23 @@ async function init() {
     }).toArray().then((gems) => {
       paidOutSum = 0;
       if (gems[0]) {
+        recentGems = [];
         gem = gems[0];
-        for(let n=0; n<gems.length; n++) {
-          if(gems[n].paid_out)
-            paidOutSum += Math.round(gems[n+1].price * 1.25);
+        for (let n = 0; n < gems.length; n++) {
+          if (gems[n].paid_out)
+            paidOutSum += Math.round(gems[n + 1].price * 1.25);
+          if (n < RECENT_GEMS_MAX_LENGTH)
+            recentGems.push(gems[n]);
         }
         resolve();
-      }
-      else {
+      } else {
         //this is the very first gem in the series!
         gem = {
           price: 100,
           _id: 1,
           date: new Date().getTime()
         };
+        recentGems = [gem];
         db.collection('gems').insertOne(gem).then(() => {
           resolve();
         });
@@ -385,6 +378,11 @@ async function createGem(invoice, oldGem, reset) {
 
   return new Promise((resolve, reject) => {
     db.collection('gems').insertOne(newGem).then(() => {
+      logger.info('new gem: ' + JSON.stringify(newGem));
+      recentGems.unshift(newGem);
+      if (RECENT_GEMS_MAX_LENGTH)
+        recentGems.pop();
+
       resolve(newGem);
     }).catch((err) => {
       reject(err);
@@ -397,12 +395,35 @@ async function createGem(invoice, oldGem, reset) {
  * @param invoice - The invoice database object for the purchase
  * @param r_hash - The r_hash for the invoice that bought the gem
  * @param reset - Whether the gem purchase resulted in a reset
+ * @returns - A promise that resolves when the gem purchase is complete
  */
 async function purchaseGem(invoice, r_hash, reset) {
   try {
-    gem = await createGem(invoice, gem, reset);
-    logger.info('new gem: ' + JSON.stringify(gem));
+    let oldGem = gem;
+    gem = await createGem(invoice, oldGem, reset);
+
+    //update previous gem to mark it as bought and pay out previous owner 
+    oldGem.bought = true;
+    if (reset) {
+      oldGem.reset = true;
+    }
+
     updateListeners(r_hash, reset);
+
+    try {
+      if (oldGem.pay_req_out) {
+        const paymentResponse = await sendPayment(oldGem.pay_req_out);
+        logger.debug("payment response: " + JSON.stringify(paymentResponse));
+        oldGem.paid_out = true;
+        paidOutSum += Math.round(oldGem.price * 1.25);
+        logger.info("paid " + oldGem.pay_req_out);
+      }
+    } finally {
+      //we want to update the old gem even if the sendpayment call above fails
+      return db.collection('gems').replaceOne({
+        _id: oldGem._id
+      }, oldGem);
+    }
   } catch (err) {
     logger.error(err);
   }

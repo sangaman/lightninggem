@@ -1,6 +1,5 @@
 const DB_NAME = 'lightninggemmochatest';
 process.env.DB_NAME = DB_NAME; //use a separate database for mocha testing
-const INITIAL_GEM_PRICE = 100;
 
 const assert = require('assert');
 const http = require('http');
@@ -33,16 +32,16 @@ describe('LightningGem', () => {
       .expect(200)
       .expect('Content-Type', /json/)
       .then((status) => {
-        assert.equal(status.body.gem._id, 1);
-        assert.equal(status.body.gem.price, INITIAL_GEM_PRICE);
+        const gem = status.body.recentGems[0];
+        assert.equal(gem._id, 1);
+        assert.equal(gem.price, 100);
       });
   });
 
   it('should POST an invoice, simulate a payment, and transfer ownership', () => {
     const req = {
       name: 'mocha',
-      gem_id: 1,
-      value: INITIAL_GEM_PRICE
+      gem_id: 1
     }
     return request(app)
       .post('/invoice')
@@ -56,14 +55,15 @@ describe('LightningGem', () => {
         };
         return lightningGem.invoiceHandler(paidInvoice);
       }).then(() => {
-        request(app)
+        return request(app)
           .get('/status')
           .set('Accept', 'application/json')
           .expect(200)
           .expect('Content-Type', /json/)
           .then((status) => {
-            assert.equal(status.gem._id, 2);
-            assert.equal(status.gem.price, 130);
+            const gem = status.body.recentGems[0];
+            assert.equal(gem._id, 2);
+            assert.equal(gem.price, 130);
           });
       })
   });

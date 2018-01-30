@@ -89,3 +89,13 @@ h6.links {
 .button {
 	margin-bottom: 12px;
 }
+.fail {
+	color: red;
+}
+.reset {
+	color: orange;
+}
+.centered-horizontally {
+	margin-left:auto;
+	margin-right:auto;
+}
