@@ -2,15 +2,38 @@
 
 require('dotenv').config();
 
+const LND_HOMEDIR = process.env.LND_HOMEDIR;
+const LN_GEM_PORT = process.env.LN_GEM_PORT;
+const DB_NAME = process.env.DB_NAME;
+const env = process.env.NODE_ENV;
+
 const grpc = require('grpc');
 const fs = require("fs");
 const crypto = require('crypto');
 const helmet = require('helmet');
 const schedule = require('node-schedule');
+const winston = require('winston');
 
-const LND_HOMEDIR = process.env.LND_HOMEDIR;
-const LN_GEM_PORT = process.env.LN_GEM_PORT;
-const DB_NAME = process.env.DB_NAME;
+const logDir = 'log';
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir);
+}
+
+const tsFormat = () => (new Date()).toLocaleString();
+const logger = new (winston.Logger)({
+  transports: [
+    new (winston.transports.Console)({
+      timestamp: tsFormat,
+      colorize: true 
+    }),
+    new (winston.transports.File)({
+      filename: `${logDir}/lightninggem.log`,
+      timestamp: tsFormat
+    })
+  ]
+});
+
+logger.level = env === 'development' ? 'debug' : 'info';
 
 const lndCert = fs.readFileSync(LND_HOMEDIR + 'tls.cert');
 const credentials = grpc.credentials.createSsl(lndCert);
@@ -64,9 +87,9 @@ setInterval(async () => {
     try {
       gem = await createGem(null, gem, true);
       updateListeners(); //update all clients to indicate gem has expired
-      console.log("gem timed out");
+      logger.info("gem timed out");
     } catch (err) {
-      console.error("error on gem reset: " + err);
+      logger.error("error on gem reset: " + err);
     }
   }
   
@@ -75,13 +98,13 @@ setInterval(async () => {
     invoiceSubscription = subscribeInvoices();
 }, 2 * 60 * 1000);
 
-//scheduled function to run once a day
+// scheduled function to run once a day
 var dailyRule = new schedule.RecurrenceRule();
 dailyRule.hour = 12;
 dailyRule.minute = 0;
 const secretsStream = fs.createWriteStream("public/secrets.txt", {flags: 'a'});
 schedule.scheduleJob(dailyRule, async () => {
-  //publish yesterday's secret
+  // publish yesterday's secret
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const secret = await db.collection('secrets').findOne({
@@ -95,13 +118,13 @@ MongoClient.connect(dbUrl).then((connection) => {
   return init()
 }).then(() => {
   if(!module.parent) { 
-    //only listen when started directly
+    // only listen when started directly
     app.listen(LN_GEM_PORT, () => {
-      console.log('App listening on port ' + LN_GEM_PORT);
+      logger.info('App listening on port ' + LN_GEM_PORT);
     });
   }
 }).catch((err) => {
-  console.error("Error on initialization: " + err);
+  logger.error("Error on initialization: " + err);
 });
 
 
@@ -123,7 +146,7 @@ app.get('/listen/:r_hash', (req, res) => {
 });
 
 app.post('/invoice', urlencodedParser, (req, res) => {
-  console.log("invoice request: " + JSON.stringify(req.body));
+  logger.info("invoice request: " + JSON.stringify(req.body));
   if (!req.body.name || req.body.name.length > 50 || (req.body.url && req.body.url.length > 150)) {
     res.status(400).end(); //this shouldn't happen, there's client-side validation to prevent this
   } else if (gem._id != req.body.gem_id) {
@@ -131,7 +154,7 @@ app.post('/invoice', urlencodedParser, (req, res) => {
   } else if(!invoiceSubscription) {
     res.status(503).send("LND on server is down, try again later.");
   } else {
-    //valid so far, check for and validate payment request
+    // valid so far, check for and validate payment request
     let responseBody;
     validatePayReq(req.body.pay_req_out).then(() => {
       return addInvoice(req.body.value);
@@ -157,7 +180,7 @@ app.post('/invoice', urlencodedParser, (req, res) => {
     }).then(() => {
       res.status(200).json(responseBody);
     }).catch((err) => {
-      console.error(err);
+      logger.error(err);
       res.status(400).send(err);
     });
   }
@@ -177,7 +200,7 @@ async function invoiceHandler(data) {
     try {
       const invoice = await db.collection('invoices').findOne(invoiceQuery);
       if (invoice) {
-        console.log("invoice settled: " + JSON.stringify(invoice));
+        logger.info("invoice settled: " + JSON.stringify(invoice));
         const oldGem = gem;
         let newVals = {
           $set: {}
@@ -196,13 +219,13 @@ async function invoiceHandler(data) {
             hash.update(invoice.pay_req_out + secret.secret);
             const buf = hash.digest();
             const firstByteInt = buf.readUIntBE(0, 1);
-            console.log('first byte of sha256 hash for ' + invoice.pay_req_out + secret.secret + ' is ' + firstByteInt);
+            logger.debug('first byte of sha256 hash for ' + invoice.pay_req_out + secret.secret + ' is ' + firstByteInt);
             if (firstByteInt < 8)
               reset = true;
           }
           purchaseGem(invoice, r_hash, reset);
         } else {
-          console.log("stale invoice paid");
+          logger.info("stale invoice paid");
           sendEvent("stale", r_hash);
           newVals.$set.status = 2;
         }
@@ -221,10 +244,10 @@ async function invoiceHandler(data) {
         try {
           if (oldGem.pay_req_out) {
             const paymentResponse = await sendPayment(oldGem.pay_req_out);
-            console.log("payment response: " + JSON.stringify(paymentResponse));
+            logger.debug("payment response: " + JSON.stringify(paymentResponse));
             gemUpdate.$set.paid_out = true;
             paidOutSum += Math.round(oldGem.price * 1.25);
-            console.log("paid " + oldGem.pay_req_out);
+            logger.info("paid " + oldGem.pay_req_out);
           }
         }
         finally {
@@ -235,7 +258,7 @@ async function invoiceHandler(data) {
         }
       }
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   }
 }
@@ -378,10 +401,10 @@ async function createGem(invoice, oldGem, reset) {
 async function purchaseGem(invoice, r_hash, reset) {
   try {
     gem = await createGem(invoice, gem, reset);
-    console.log('new gem: ' + JSON.stringify(gem));
+    logger.info('new gem: ' + JSON.stringify(gem));
     updateListeners(r_hash, reset);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
   }
 }
 
@@ -417,7 +440,7 @@ function sendEvent(event, r_hash) {
       //listeners[listener_r_hash].set("Connection", "close");
       listener.end();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   }
 }
@@ -428,12 +451,12 @@ function sendEvent(event, r_hash) {
  */
 function subscribeInvoices() {
   return lightning.subscribeInvoices({}, meta).on('data', invoiceHandler).on('end', () => {
-    console.log("subscribeInvoices ended");
+    logger.warn("subscribeInvoices ended");
     invoiceSubscription = undefined;
   }).on('status', (status) => {
-    console.log("subscribeInvoices status: " + JSON.stringify(status));
+    logger.info("subscribeInvoices status: " + JSON.stringify(status));
   }).on('error', (error) => {
-    console.error("subscribeInvoices error: " + error);
+    logger.error("subscribeInvoices error: " + error);
     invoiceSubscription = undefined;
   });
 }
