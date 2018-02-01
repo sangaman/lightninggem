@@ -38,7 +38,7 @@ describe('LightningGem', () => {
       });
   });
 
-  it('should POST an invoice, simulate a payment, and transfer ownership', () => {
+  it('should POST an invoice request, simulate a payment, and transfer ownership', () => {
     const req = {
       name: 'mocha',
       gem_id: 1

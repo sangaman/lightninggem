@@ -185,8 +185,13 @@ app.post('/invoice', urlencodedParser, (req, res) => {
         invoice.pay_req_out = req.body.pay_req_out;
       return invoice;
     }).then((invoice) => {
-      return db.collection('invoices').insertOne(invoice);
+      return db.collection('invoices').replaceOne({
+        r_hash: responseBody.r_hash
+      }, invoice, {
+        upsert: true
+      });
     }).then(() => {
+      logger.verbose('invoice added: ' + JSON.stringify(responseBody));
       res.status(200).json(responseBody);
     }).catch((err) => {
       logger.error(err);
@@ -319,15 +324,20 @@ async function validatePayReq(pay_req) {
 }
 
 /**
+ * Creates an index on r_hash for invoices if it doesn't exist.
  * Fetches the most recent gem from the database. If no gem
  * exists, it creates one. Also computes lifetime payouts.
  * @returns - A promise that resolves when the gem is initialized
  */
 async function init() {
   return new Promise((resolve, reject) => {
-    db.collection('gems').find().sort({
-      _id: -1
-    }).toArray().then((gems) => {
+    db.collection('invoices').createIndex('r_hash', {
+      unique: true
+    }).then(() => {
+      return db.collection('gems').find().sort({
+        _id: -1
+      }).toArray();
+    }).then((gems) => {
       paidOutSum = 0;
       if (gems[0]) {
         recentGems = [];
