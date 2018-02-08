@@ -49,7 +49,7 @@
     <div class="six columns">
       <p>You can be the next owner of the gem! The current price is <span class="price"></span>. After your purchase, the gem's price will be <span id="new_price"></span> bits.</p>
       <p>You will stay the owner until the next person buys it. We then will send <span class="payout"></span> bits back to you. <b>Yes, that's a 25% profit for you.</b></p>
-      <p>However, there's a <strong>1 in 32</strong> (3.125%) chance that the gem will reset each time it is purchased. It will also reset if there's no new buyer for 12 hours. Should your purchase result in a reset, you will lose your stake and the gem's price will start over at 1 bit.</p>
+      <p>However, there's a <strong>1 in 32</strong> (3.125%) chance that the gem will reset each time it is purchased. It will also reset if there's no new buyer for 24 hours. Should your purchase result in a reset, you will lose your stake and the gem's price will start over at 1 bit.</p>
       <p>Currently, the Lightning Gem works on the Bitcoin Testnet only.</p>
     </div>
     <!-- Own the gem End -->
@@ -61,9 +61,9 @@
       <!-- Step One Start -->
       <div id="step_one">
         <p>
-          To buy the gem, create a lightning payment request for <strong class="payout"></strong> bits with an expiry of at least 12 hours. Paste that below along with a name to display and, optionally, a website to link to. Click 'Submit' to create your unique invoice and pay it before someone else buys the gem! Keep your lightning node online and we'll pay you your profit if somebody buys the gem from you.
+          To buy the gem, create a lightning payment request for <strong class="payout"></strong> bits with an expiry of at least 24 hours. Paste that below along with a name to display and, optionally, a website to link to. Click 'Submit' to create your unique invoice and pay it before someone else buys the gem! Keep your lightning node online and we'll pay you your profit if somebody buys the gem from you.
         </p>
-        <p><code>lncli addinvoice --value <span id="payout_sats"></span> --expiry 86400</code></p>
+        <p><code>lncli addinvoice --amt <span id="payout_sats"></span> --expiry 86400</code></p>
         <div id="not_valid" class="alert-box alert" style="display: none;"><span id="not_valid_msg"></span><br />Please try again!<a href="" class="close">&times;</a></div>
         <form>
           <span class="fail" id="invoice_err"></span>
@@ -98,6 +98,9 @@
   </section>
   <!-- How to buy End -->
   <section class="row">
+    <p><strong>New!</strong> Now you can check on the status of the <a href="https://info.lightninggem.com">lnd node behind the lightning gem</a>!</p>
+  </section>
+  <section class="row">
     <div class="twelve columns">
       <div class="title">
         <h4>Recent Owners</h4>
@@ -125,16 +128,16 @@
       <p>The <a href="https://lightning.network/">lightning network</a> is a second layer payment network on top of bitcoin that enables microtransactions and instant settlement. This site uses <a href="https://github.com/lightningnetwork/lnd">lnd</a> for lightning functionality.</p>
       <h5>Why should I buy the gem?</h5>
       <p>To advertise your name (or link) under it and show off that you own the gem. Not to mention you can make a handsome profit when a new buyer comes in!</p>
-      <h5>How do I create an invoice with an expiry of at least 12 hours?</h5>
-      <p>Using the command line interface with lnd, you can create a long-lived invoice by setting the <code>expiry</code> parameter to a value over 43200. For example, to create an invoice for 1.25 bits that's good for a day use <code>lncli addinvoice --value 125 --expiry 86400</code>.</p>
+      <h5>How do I create an invoice with an expiry of at least 24h hours?</h5>
+      <p>Using the command line interface with lnd, you can create a long-lived invoice by setting the <code>expiry</code> parameter to a value over 86400. For example, to create an invoice for 1.25 bits that's good for a day use <code>lncli addinvoice --amt 125 --expiry 86400</code>.</p>
       <h5>Why can't I complete my payment to buy the gem?</h5>
-      <p>Your node may be unable to find a payment path to ours. You can open a channel with us directly at <code>023c1fc1ef2d9a555693cf0fdc39b66d934dfc07bc0b1ee050fd3f4aeb773b9438@35.185.13.214</code>.</p>
+      <p>Your node may be unable to find a payment path to ours. You can open a channel with us directly at <code id="lnd_connection_string"></code>.</p>
       <h5>How does the price increase?</h5>
       <p>Every time the gem changes hands its worth increases by 30% rounded to the nearest satoshi.</p>
       <h5>How do random resets work?</h5>
       <p>We take the payment request you generated and append a secret string of characters as a <a href="https://en.wikipedia.org/wiki/Cryptographic_nonce">nonce</a>, then we hash that using SHA-256. We convert the first byte of the hash to a number from 0 to 255. If that number is less than 8 - which will happen 1 in 32 times - we reset the gem. We use a different secret every day based on UTC time, and every day we will publish the secret for the previous day <a href="secrets.txt">here</a> so you can check our work for yourself. A list of the SHA-256 hashes for all secrets we will use through 2018 is available as a gist <a href="https://gist.github.com/sangaman/00ec664d22548c7f2517a79d3fd31bf4">here</a>.</p>
       <h5>What happens if no one after me buys the gem?</h5>
-      <p>If there's no new buyer for more than 12 hours, the gem will reset automatically to 1 bit and you'll lose your stake.</p>
+      <p>If there's no new buyer for more than 24 hours, the gem will reset automatically to 1 bit and you'll lose your stake.</p>
       <h5>What's a bit?</h5>
       <p>A bit, as specified in <a href="https://github.com/bitcoin/bips/blob/master/bip-0176.mediawiki">BIP176</a>, is 1 millionth of a bitcoin - or 100 satoshis.</p>
       <h5>What happens if I send payment but someone buys the gem before me?</h5>

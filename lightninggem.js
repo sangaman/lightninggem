@@ -5,6 +5,7 @@ require('dotenv').config();
 const LND_HOMEDIR = process.env.LND_HOMEDIR;
 const LN_GEM_PORT = process.env.LN_GEM_PORT;
 const DB_NAME = process.env.DB_NAME;
+const LND_CONNECTION_STRING = process.env.LND_CONNECTION_STRING;
 const env = process.env.NODE_ENV;
 
 const grpc = require('grpc');
@@ -39,7 +40,7 @@ const lndCert = fs.readFileSync(LND_HOMEDIR + 'tls.cert');
 const credentials = grpc.credentials.createSsl(lndCert);
 const lnrpcDescriptor = grpc.load("rpc.proto");
 const lnrpc = lnrpcDescriptor.lnrpc;
-const lightning = new lnrpc.Lightning('127.0.0.1:10009', credentials);
+var lightning = new lnrpc.Lightning('127.0.0.1:10009', credentials);
 
 const adminMacaroon = fs.readFileSync(LND_HOMEDIR + 'admin.macaroon');
 const meta = new grpc.Metadata();
@@ -90,7 +91,7 @@ var invoiceSubscription = subscribeInvoices();
 //timer function to run every 2 minutes
 setInterval(async () => {
   //check for timeout
-  if (gem.owner && gem.date < (new Date().getTime() - 12 * 60 * 60 * 1000)) {
+  if (gem.owner && gem.date < (new Date().getTime() - 24 * 60 * 60 * 1000)) {
     try {
       gem = await createGem(null, gem, true);
       updateListeners(); //update all clients to indicate gem has expired
@@ -99,10 +100,6 @@ setInterval(async () => {
       logger.error("error on gem reset: " + err);
     }
   }
-
-  //if invoiceSubscription is undefined, try to resubscribe
-  if (!invoiceSubscription)
-    invoiceSubscription = subscribeInvoices();
 }, 2 * 60 * 1000);
 
 // scheduled function to run once a day
@@ -140,7 +137,8 @@ MongoClient.connect(dbUrl).then((connection) => {
 app.get('/status', (req, res) => {
   res.status(200).json({
     recentGems: recentGems,
-    paidOutSum: paidOutSum
+    paidOutSum: paidOutSum,
+    lndConnectionString: LND_CONNECTION_STRING
   });
 });
 
@@ -485,7 +483,7 @@ function subscribeInvoices() {
     logger.warn("subscribeInvoices ended");
     invoiceSubscription = undefined;
   }).on('status', (status) => {
-    logger.info("subscribeInvoices status: " + JSON.stringify(status));
+    logger.debug("subscribeInvoices status: " + JSON.stringify(status));
   }).on('error', (error) => {
     logger.error("subscribeInvoices error: " + error);
     invoiceSubscription = undefined;
