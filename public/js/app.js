@@ -31,7 +31,7 @@ function refresh() {
   $("#url").val('');
   $("#node").val('');
   $('#qr').hide();
-  $.get('/status', function(status) {
+  $.get('/status', function (status) {
     var gem = status.recentGems[0];
     if (gem.owner) {
       $("#owner").text(gem.owner);
@@ -52,7 +52,7 @@ function refresh() {
     gem_id = gem._id;
 
     var recentGemsHtml = "";
-    $.each(status.recentGems.slice(1), function(index, value) {
+    $.each(status.recentGems.slice(1), function (index, value) {
       recentGemsHtml += "<tr><td>";
       recentGemsHtml += new Date(value.date).toLocaleString() + "</td><td>";
       if (value.url)
@@ -75,13 +75,13 @@ function refresh() {
 }
 refresh();
 
-$(window).on('unload', function() {
+$(window).on('unload', function () {
   if (event_source)
     event_source.close();
 });
 
-$(document).ready(function() {
-  $("#submit").click(function() {
+$(document).ready(function () {
+  $("#submit").click(function () {
     if (!$("#name").val()) {
       $("#invoice_err").text("Please enter a name");
       return;
@@ -98,17 +98,18 @@ $(document).ready(function() {
     var pay_req_out = $("#pay_req_out").val()
     if (pay_req_out.startsWith('lightning://'))
       pay_req_out = pay_req_out.substring(12);
+    pay_req_out = pay_req_out.replace(/(\n|\r)/gm, "");
     $.post('/invoice', {
       name: $("#name").val(),
       url: $("#url").val(),
       pay_req_out: pay_req_out,
       gem_id: gem_id
-    }, function(invoice) {
+    }, function (invoice) {
       showInvoice(invoice);
       if (!!window.EventSource) {
         event_source = new EventSource('/listen/' + invoice.r_hash);
 
-        event_source.onmessage = function(e) {
+        event_source.onmessage = function (e) {
           if (e.data == 'settled') {
             $("#payment").hide();
             $("#receipt").show();
@@ -126,7 +127,7 @@ $(document).ready(function() {
           $("#refresh").show();
         };
 
-        event_source.onerror = function(e) {
+        event_source.onerror = function (e) {
           if (e.target.readyState == EventSource.CLOSED) {
             $("#pay_err").text("Disconnected from server, refresh the page");
           }
@@ -134,7 +135,7 @@ $(document).ready(function() {
       } else {
         console.log("Your browser doesn't support SSE");
       }
-    }).fail(function(response) {
+    }).fail(function (response) {
       if (response.responseText)
         $("#invoice_err").text(response.responseText);
       else {
@@ -145,7 +146,7 @@ $(document).ready(function() {
     });
   });
 
-  $("#refresh").click(function() {
+  $("#refresh").click(function () {
     refresh();
   });
 });
