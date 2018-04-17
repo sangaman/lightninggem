@@ -24,7 +24,8 @@
     "node": ">=7.6.0"
   },
   "scripts": {
-    "test": "./node_modules/.bin/mocha --reporter spec --exit"
+    "test": "./node_modules/.bin/mocha --reporter spec --exit",
+    "start": "node lightninggem.js"
   },
   "keywords": [
     "bitcoin",
