@@ -1,7 +1,5 @@
 require('dotenv').config();
 
-process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
-
 const {
   LND_HOMEDIR,
   LN_GEM_PORT,
