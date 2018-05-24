@@ -19,6 +19,8 @@ const {
   LN_GEM_PORT,
   DB_NAME,
   NODE_ENV,
+  MONGO_HOST,
+  LND_HOST,
 } = process.env;
 
 const LND_UNAVAILABLE = {
@@ -26,7 +28,7 @@ const LND_UNAVAILABLE = {
   message: 'LND on server is down',
 };
 
-const dbUrl = 'mongodb://127.0.0.1:27017';
+const dbUrl = `mongodb://${MONGO_HOST || '127.0.0.1'}`;
 
 const LOG_DIR = 'log';
 if (!fs.existsSync(LOG_DIR)) {
@@ -36,7 +38,7 @@ if (!fs.existsSync(LOG_DIR)) {
 const lndCert = fs.readFileSync(`${LND_HOMEDIR}tls.cert`);
 const credentials = grpc.credentials.createSsl(lndCert);
 const lnrpcDescriptor = grpc.load('rpc.proto');
-let lightning = new lnrpcDescriptor.lnrpc.Lightning('127.0.0.1:10009', credentials);
+let lightning = new lnrpcDescriptor.lnrpc.Lightning(LND_HOST || '127.0.0.1:10009', credentials);
 
 const adminMacaroon = fs.readFileSync(`${LND_HOMEDIR}admin.macaroon`);
 const meta = new grpc.Metadata();
@@ -487,7 +489,7 @@ try {
 subscribeInvoices();
 
 MongoClient.connect(dbUrl).then((connection) => {
-  db = connection.db(DB_NAME);
+  db = connection.db(DB_NAME || 'lightninggem');
   return init();
 }).then(() => {
   // listen and write logs only when started directly
@@ -507,7 +509,7 @@ MongoClient.connect(dbUrl).then((connection) => {
     });
 
     logger.level = NODE_ENV === 'development' ? 'debug' : 'info';
-    app.listen(LN_GEM_PORT, () => {
+    app.listen(LN_GEM_PORT || 8080, () => {
       logger.info(`App listening on port ${LN_GEM_PORT}`);
     });
   } else {
