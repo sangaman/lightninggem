@@ -216,7 +216,7 @@ app.get('/listen/:r_hash', (req, res) => {
   listeners[req.params.r_hash] = res;
 });
 
-app.post('/invoice', urlencodedParser, (req, res) => {
+app.post('/invoice', urlencodedParser, async (req, res) => {
   logger.info(`invoice request: ${JSON.stringify(req.body)}`);
   if (!lightning) {
     res.status(LND_UNAVAILABLE.status).send(LND_UNAVAILABLE.message);
@@ -226,41 +226,43 @@ app.post('/invoice', urlencodedParser, (req, res) => {
     res.status(400).send('Gem out of sync, try refreshing');
   } else {
     // valid so far, check for and validate payment request
-    let responseBody;
-    validatePayReq(req.body.pay_req_out).then(() => addInvoice(gem.price)).then((response) => {
-      const rHash = response.r_hash.toString('hex');
-      responseBody = {
-        r_hash: rHash,
-        payment_request: response.payment_request,
+    try {
+      await validatePayReq(req.body.pay_req_out);
+      const addInvoiceResponse = await addInvoice(gem.price);
+      const r_hash = addInvoiceResponse.r_hash.toString('hex');
+      const responseBody = {
+        r_hash,
+        payment_request: addInvoiceResponse.payment_request,
       };
 
       const invoice = {
         gemId: req.body.gem_id,
         name: req.body.name,
         url: req.body.url,
-        r_hash: response.r_hash.toString('hex'),
+        r_hash: addInvoiceResponse.r_hash.toString('hex'),
         value: gem.price,
       };
-      if (req.body.pay_req_out) { invoice.pay_req_out = req.body.pay_req_out; }
-      return invoice;
-    }).then(invoice => db.collection('invoices').replaceOne({
-      r_hash: responseBody.r_hash,
-    }, invoice, {
-      upsert: true,
-    }))
-      .then(() => {
-        logger.verbose(`invoice added: ${JSON.stringify(responseBody)}`);
-        res.status(200).json(responseBody);
-      })
-      .catch((err) => {
-        if (err.status) {
-          logger.error(err.message);
-          res.status(err.status).send(err.message);
-        } else {
-          logger.error(err);
-          res.status(400).send(err.message);
-        }
+      if (req.body.pay_req_out) {
+        invoice.pay_req_out = req.body.pay_req_out;
+      }
+
+      await db.collection('invoices').replaceOne({
+        r_hash: responseBody.r_hash,
+      }, invoice, {
+        upsert: true,
       });
+
+      logger.verbose(`invoice added: ${JSON.stringify(responseBody)}`);
+      res.status(200).json(responseBody);
+    } catch (err) {
+      if (err.status) {
+        logger.error(err.message);
+        res.status(err.status).send(err.message);
+      } else {
+        logger.error(err);
+        res.status(400).send(err.message);
+      }
+    }
   }
 });
 
