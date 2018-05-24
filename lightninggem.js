@@ -29,9 +29,9 @@ const LND_UNAVAILABLE = {
 
 const dbUrl = 'mongodb://127.0.0.1:27017';
 
-const logDir = 'log';
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
+const LOG_DIR = 'log';
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR);
 }
 
 const lndCert = fs.readFileSync(`${LND_HOMEDIR}tls.cert`);
@@ -484,7 +484,7 @@ MongoClient.connect(dbUrl).then((connection) => {
           colorize: true,
         }),
         new (logger.transports.File)({
-          filename: `${logDir}/lightninggem.log`,
+          filename: `${LOG_DIR}/lightninggem.log`,
           timestamp: tsFormat,
         }),
       ],
