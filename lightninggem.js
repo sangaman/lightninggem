@@ -12,7 +12,7 @@ const { MongoClient } = require('mongodb');
 
 process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
 
-const RECENT_GEMS_MAX_LENGTH = 6;
+const RECENT_GEMS_MAX = 6;
 
 const {
   LND_HOMEDIR,
@@ -124,8 +124,12 @@ async function init() {
     recentGems = [];
     [gem] = gems;
     for (let n = 0; n < gems.length; n += 1) {
-      if (gems[n].paid_out) { paidOutSum += Math.round(gems[n + 1].price * 1.25); }
-      if (n < RECENT_GEMS_MAX_LENGTH) { recentGems.push(gems[n]); }
+      if (gems[n].paid_out) {
+        paidOutSum += Math.round(gems[n + 1].price * 1.25);
+      }
+      if (n < RECENT_GEMS_MAX) {
+        recentGems.push(gems[n]);
+      }
     }
   } else {
     // this is the very first gem in the series!
@@ -309,9 +313,7 @@ async function createGem(invoice, oldGem, reset) {
   await db.collection('gems').insertOne(newGem);
   logger.info(`new gem: ${JSON.stringify(newGem)}`);
   recentGems.unshift(newGem);
-  if (RECENT_GEMS_MAX_LENGTH) {
-    recentGems.pop();
-  }
+  recentGems.pop();
 
   return newGem;
 }
