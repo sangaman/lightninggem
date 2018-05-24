@@ -1,6 +1,18 @@
 require('dotenv').config();
 
+const grpc = require('grpc');
+const fs = require('fs');
+const crypto = require('crypto');
+const helmet = require('helmet');
+const schedule = require('node-schedule');
+const logger = require('winston');
+const express = require('express');
+const bodyParser = require('body-parser');
+const { MongoClient } = require('mongodb');
+
 process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
+
+const RECENT_GEMS_MAX_LENGTH = 6;
 
 const {
   LND_HOMEDIR,
@@ -10,17 +22,12 @@ const {
   NODE_ENV,
 } = process.env;
 
-const grpc = require('grpc');
-const fs = require('fs');
-const crypto = require('crypto');
-const helmet = require('helmet');
-const schedule = require('node-schedule');
-const logger = require('winston');
-
 const LND_UNAVAILABLE = {
   status: 503,
   message: 'LND on server is down',
 };
+
+const dbUrl = 'mongodb://127.0.0.1:27017';
 
 const logDir = 'log';
 if (!fs.existsSync(logDir)) {
@@ -36,16 +43,9 @@ const adminMacaroon = fs.readFileSync(`${LND_HOMEDIR}admin.macaroon`);
 const meta = new grpc.Metadata();
 meta.add('macaroon', adminMacaroon.toString('hex'));
 
-const express = require('express');
-const bodyParser = require('body-parser');
-
 const urlencodedParser = bodyParser.urlencoded({
   extended: true,
 });
-
-const { MongoClient } = require('mongodb');
-
-const dbUrl = 'mongodb://127.0.0.1:27017';
 
 const app = express();
 app.use(express.static('public'));
@@ -66,8 +66,6 @@ let paidOutSum;
  * An array of recent gems
  */
 let recentGems;
-
-const RECENT_GEMS_MAX_LENGTH = 6;
 
 /**
  * A map of invoice r_hashes to response objects for clients
