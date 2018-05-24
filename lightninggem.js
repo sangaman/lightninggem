@@ -18,7 +18,6 @@ const {
   LND_HOMEDIR,
   LN_GEM_PORT,
   DB_NAME,
-  LND_CONNECTION_STRING,
   NODE_ENV,
 } = process.env;
 
@@ -42,6 +41,8 @@ let lightning = new lnrpcDescriptor.lnrpc.Lightning('127.0.0.1:10009', credentia
 const adminMacaroon = fs.readFileSync(`${LND_HOMEDIR}admin.macaroon`);
 const meta = new grpc.Metadata();
 meta.add('macaroon', adminMacaroon.toString('hex'));
+
+let lndConnectionString;
 
 const urlencodedParser = bodyParser.urlencoded({
   extended: true,
@@ -97,30 +98,43 @@ schedule.scheduleJob(dailyRule, async () => {
  * @returns - A promise that resolves when the gem is initialized
  */
 async function init() {
-  db.collection('invoices').createIndex('r_hash', {
-    unique: true,
-  }).then(() => db.collection('gems').find().sort({
-    _id: -1,
-  }).toArray()).then(async (gems) => {
-    paidOutSum = 0;
-    if (gems[0]) {
-      recentGems = [];
-      [gem] = gems;
-      for (let n = 0; n < gems.length; n += 1) {
-        if (gems[n].paid_out) { paidOutSum += Math.round(gems[n + 1].price * 1.25); }
-        if (n < RECENT_GEMS_MAX_LENGTH) { recentGems.push(gems[n]); }
+  const promises = [];
+  const uriPromise = new Promise((resolve, reject) => {
+    lightning.getInfo({}, meta, (err, response) => {
+      if (err) {
+        logger.error(err);
+        reject(err);
+      } else {
+        resolve(response.uris[0]);
       }
-    } else {
-      // this is the very first gem in the series!
-      gem = {
-        price: 100,
-        _id: 1,
-        date: new Date().getTime(),
-      };
-      recentGems = [gem];
-      await db.collection('gems').insertOne(gem);
-    }
+    });
   });
+  promises.push(uriPromise);
+
+  promises.push(db.collection('gems').find().sort({ _id: -1 }).toArray());
+  promises.push(db.collection('invoices').createIndex('r_hash', { unique: true }));
+
+  const [uri, gems] = await Promise.all(promises);
+  lndConnectionString = uri;
+
+  paidOutSum = 0;
+  if (gems[0]) {
+    recentGems = [];
+    [gem] = gems;
+    for (let n = 0; n < gems.length; n += 1) {
+      if (gems[n].paid_out) { paidOutSum += Math.round(gems[n + 1].price * 1.25); }
+      if (n < RECENT_GEMS_MAX_LENGTH) { recentGems.push(gems[n]); }
+    }
+  } else {
+    // this is the very first gem in the series!
+    gem = {
+      price: 100,
+      _id: 1,
+      date: new Date().getTime(),
+    };
+    recentGems = [gem];
+    await db.collection('gems').insertOne(gem);
+  }
 }
 
 /**
@@ -188,7 +202,7 @@ app.get('/status', (req, res) => {
   res.status(200).json({
     recentGems,
     paidOutSum,
-    lndConnectionString: LND_CONNECTION_STRING,
+    lndConnectionString,
   });
 });
 
