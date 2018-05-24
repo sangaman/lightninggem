@@ -37,7 +37,7 @@ if (!fs.existsSync(logDir)) {
 const lndCert = fs.readFileSync(`${LND_HOMEDIR}tls.cert`);
 const credentials = grpc.credentials.createSsl(lndCert);
 const lnrpcDescriptor = grpc.load('rpc.proto');
-const lightning = new lnrpcDescriptor.lnrpc.Lightning('127.0.0.1:10009', credentials);
+let lightning = new lnrpcDescriptor.lnrpc.Lightning('127.0.0.1:10009', credentials);
 
 const adminMacaroon = fs.readFileSync(`${LND_HOMEDIR}admin.macaroon`);
 const meta = new grpc.Metadata();
@@ -204,7 +204,9 @@ app.get('/listen/:r_hash', (req, res) => {
 
 app.post('/invoice', urlencodedParser, (req, res) => {
   logger.info(`invoice request: ${JSON.stringify(req.body)}`);
-  if (!req.body.name || req.body.name.length > 50 || (req.body.url && req.body.url.length > 150)) {
+  if (!lightning) {
+    res.status(LND_UNAVAILABLE.status).send(LND_UNAVAILABLE.message);
+  } else if (!req.body.name || req.body.name.length > 50 || (req.body.url && req.body.url.length > 150)) {
     res.status(400).end(); // this shouldn't happen, there's client-side validation to prevent this
   } else if (gem._id !== parseInt(req.body.gem_id, 10)) {
     res.status(400).send('Gem out of sync, try refreshing');
@@ -369,23 +371,6 @@ async function purchaseGem(invoice, rHash, reset) {
   }
 }
 
-// timer function to run every 2 minutes
-try {
-  setInterval(async () => {
-    // check for timeout
-    if (gem.owner && gem.date < (new Date().getTime() - (24 * 60 * 60 * 1000))) {
-      try {
-        gem = await createGem(null, gem, true);
-        updateListeners(); // update all clients to indicate gem has expired
-        logger.info('gem timed out');
-      } catch (err) {
-        logger.error(`error on gem reset: ${err}`);
-      }
-    }
-  }, 2 * 60 * 1000);
-} catch (err) {
-  logger.error(err);
-}
 /**
  * Handler for updates on lightning invoices
  * @param data - The data from the lightning invoice subscription
@@ -441,14 +426,49 @@ async function invoiceHandler(data) {
   return false;
 }
 
-lightning.subscribeInvoices({}, meta).on('data', invoiceHandler).on('end', () => {
-  logger.warn('subscribeInvoices ended');
-}).on('status', (status) => {
-  logger.debug(`subscribeInvoices status: ${JSON.stringify(status)}`);
-})
-  .on('error', (error) => {
-    logger.error(`subscribeInvoices error: ${error}`);
-  });
+/**
+ * Subscribe to lnd invoice events
+ */
+function subscribeInvoices() {
+  lightning.subscribeInvoices({}, meta)
+    .on('data', invoiceHandler)
+    .on('end', () => {
+      logger.warn('subscribeInvoices ended');
+      lightning = undefined;
+    })
+    .on('status', (status) => {
+      logger.debug(`subscribeInvoices status: ${JSON.stringify(status)}`);
+    })
+    .on('error', (error) => {
+      logger.error(`subscribeInvoices error: ${error}`);
+      lightning = undefined;
+    });
+}
+
+// timer function to run every 2 minutes
+try {
+  setInterval(async () => {
+    // check for lnd disconnection
+    if (!lightning) {
+      lightning = new lnrpcDescriptor.lnrpc.Lightning('127.0.0.1:10009', credentials);
+      subscribeInvoices();
+    }
+    // check for timeout
+    if (gem.owner && gem.date < (new Date().getTime() - (24 * 60 * 60 * 1000))) {
+      try {
+        gem = await createGem(null, gem, true);
+        updateListeners(); // update all clients to indicate gem has expired
+        logger.info('gem timed out');
+      } catch (err) {
+        logger.error(`error on gem reset: ${err}`);
+      }
+    }
+  }, 2 * 60 * 1000);
+} catch (err) {
+  logger.error(err);
+}
+
+subscribeInvoices();
 
 MongoClient.connect(dbUrl).then((connection) => {
   db = connection.db(DB_NAME);
