@@ -24,7 +24,8 @@
     "node": ">=7.6.0"
   },
   "scripts": {
-    "test": "./node_modules/.bin/mocha --reporter spec --exit",
+    "test": "mocha --reporter spec --exit",
+    "lint": "eslint ./**/*.js",
     "start": "node lightninggem.js"
   },
   "keywords": [
