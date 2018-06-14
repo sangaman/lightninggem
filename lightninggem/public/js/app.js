@@ -1,3 +1,5 @@
+/* eslint-disable */
+
 var gem_id;
 var price;
 var event_source;
@@ -48,7 +50,7 @@ function refresh() {
     $(".payout").text((Math.round(1.25 * price) / 100).toLocaleString());
     $("#payout_sats").text(Math.round(1.25 * price));
     $("#new_price").text((Math.round(price * 1.3) / 100).toLocaleString());
-    $("#lnd_connection_string").text(status.lndConnectionString);
+    $("[name=lnd_connection_string]").text(status.lndConnectionString);
     gem_id = gem._id;
 
     var recentGemsHtml = "";

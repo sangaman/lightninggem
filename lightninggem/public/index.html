@@ -68,7 +68,9 @@
       <p>However, there's a
         <strong>1 in 32</strong> (3.125%) chance that the gem will reset each time it is purchased. It will also reset if there's
         no new buyer for 24 hours. Should your purchase result in a reset, you will lose your stake and the gem's price will
-        start over at 1 bit.</p>
+        start over at 1 bit.
+      </p>
+      <p>Looking for the testnet version? You can find it <a href="https://testnet.lightninggem.com">here.</a></p>
     </div>
     <!-- Own the gem End -->
     <!-- How to buy End -->
@@ -129,9 +131,11 @@
   </section>
   <!-- How to buy End -->
   <section class="row">
+    <p></p>
     <p>
-      <strong>New!</strong> Now you can check on the status of the
-      <a href="https://info.lightninggem.com">lnd node behind the lightning gem</a>!</p>
+      Connect to our Lightning node at <code name="lnd_connection_string"></code>.<br/>
+      You can also check on our <a href="https://info.lightninggem.com">node's status and statistics</a> in real time!
+    </p>
   </section>
   <section class="row">
     <div class="twelve columns">
@@ -173,7 +177,7 @@
         <code>lncli addinvoice --amt 125 --expiry 86400</code>.</p>
       <h5>Why can't I complete my payment to buy the gem?</h5>
       <p>Your node may be unable to find a payment path to ours. You can open a channel with us directly at
-        <code id="lnd_connection_string"></code>.</p>
+        <code name="lnd_connection_string"></code>.</p>
       <h5>How does the price increase?</h5>
       <p>Every time the gem changes owners its worth increases by 30% rounded to the nearest satoshi.</p>
       <h5>How do random resets work?</h5>
