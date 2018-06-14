@@ -14,7 +14,7 @@
   <section class="section">
     <div class="container">
       <h1 class="title is-1"><a href="https://lightninggem.com">Lightning Gem</a> LND Node Info</h1>
-      <p>Use this page to see information on the Lightning Gem <a href="https://github.com/lightningnetwork/lnd">LND</a> Node as well as the known lightning network. The Lightning Gem is running commit <code>7bbcbc6</code> on the master branch from February 6, 2018.</p>
+      <p>Use this page to see information on the Lightning Gem <a href="https://github.com/lightningnetwork/lnd">LND</a> Node as well as the known lightning network.</p>
     </div>
   </section>
   <section class="section" id="app">
@@ -58,6 +58,18 @@
           <label class="label">Identity Public Key</label>
           <div class="control">
             <input class="input" type="text" v-bind:value="getInfoResult.identity_pubkey" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Alias</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.alias" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Version</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.version" readonly>
           </div>
         </div>
         <div class="field">
