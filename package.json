@@ -1,14 +1,16 @@
 {
   "name": "lightninggem",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-beta.1",
   "description": "A game of speculation using bitcoin and the lightning network",
-  "main": "lightninggem.js",
+  "main": "main.js",
   "dependencies": {
     "body-parser": "^1.18.2",
     "dotenv": "^5.0.1",
     "express": "^4.16.3",
-    "grpc": "^1.10.0",
+    "express-rate-limit": "^2.11.0",
+    "grpc": "^1.12.3",
     "helmet": "^3.12.0",
+    "memory-cache": "^0.2.0",
     "mongodb": "^3.0.4",
     "node-schedule": "^1.3.0",
     "winston": "^2.4.1"
@@ -26,7 +28,7 @@
   "scripts": {
     "test": "mocha --reporter spec --exit",
     "lint": "eslint ./**/*.js",
-    "start": "node lightninggem.js"
+    "start": "node main.js"
   },
   "keywords": [
     "bitcoin",
@@ -37,9 +39,6 @@
     "lightning network",
     "cryptocurrency",
     "lnd"
-  ],
-  "os": [
-    "linux"
   ],
   "author": "Daniel McNally",
   "license": "AGPL-3.0",

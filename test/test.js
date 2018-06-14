@@ -1,11 +1,15 @@
 /* eslint-env mocha */
 
+require('dotenv').config();
+
+process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
+
 const DB_NAME = 'lightninggemmochatest';
 process.env.DB_NAME = DB_NAME; // use a separate database for mocha testing
 
 const assert = require('assert');
 const request = require('supertest');
-const lightningGem = require('../lightninggem');
+const lightningGem = require('../lightninggem/lightning-gem');
 const { MongoClient } = require('mongodb');
 
 const { app } = lightningGem;
@@ -20,8 +24,8 @@ describe('LightningGem', () => {
     // start with a fresh database
     await db.collection('gems').remove();
     await db.collection('invoices').remove();
-    connection.close();
-    await lightningGem.init();
+    await connection.close();
+    await lightningGem.init(true);
   });
 
   it('should GET the initial status', () => request(app)
@@ -40,6 +44,7 @@ describe('LightningGem', () => {
       name: 'mocha',
       gem_id: 1,
     };
+process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
     return request(app)
       .post('/invoice')
       .set('Accept', 'application/json')

@@ -1,26 +1,22 @@
-require('dotenv').config();
-
-const grpc = require('grpc');
+const logger = require('winston');
 const fs = require('fs');
+const path = require('path');
+const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const helmet = require('helmet');
 const schedule = require('node-schedule');
-const logger = require('winston');
 const express = require('express');
-const bodyParser = require('body-parser');
 const { MongoClient } = require('mongodb');
-
-process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
+const createLightning = require('../lightning/create-lightning');
+const meta = require('../lightning/meta');
 
 const RECENT_GEMS_MAX = 6;
 
 const {
-  LND_HOMEDIR,
   LN_GEM_PORT,
   DB_NAME,
   NODE_ENV,
   MONGO_HOST,
-  LND_HOST,
 } = process.env;
 
 const LND_UNAVAILABLE = {
@@ -35,14 +31,7 @@ if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR);
 }
 
-const lndCert = fs.readFileSync(`${LND_HOMEDIR}tls.cert`);
-const credentials = grpc.credentials.createSsl(lndCert);
-const lnrpcDescriptor = grpc.load('rpc.proto');
-let lightning = new lnrpcDescriptor.lnrpc.Lightning(LND_HOST || '127.0.0.1:10009', credentials);
-
-const adminMacaroon = fs.readFileSync(`${LND_HOMEDIR}admin.macaroon`);
-const meta = new grpc.Metadata();
-meta.add('macaroon', adminMacaroon.toString('hex'));
+let lightning = createLightning();
 
 let lndConnectionString;
 
@@ -51,36 +40,40 @@ const urlencodedParser = bodyParser.urlencoded({
 });
 
 const app = express();
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(helmet());
 let db;
 
 /**
- * The current gem containing the owner's details
- */
+   * The current gem containing the owner's details
+   */
 let gem;
 
 /**
- * The sum of all outgoing payments
- */
+   * The sum of all outgoing payments
+   */
 let paidOutSum;
 
 /**
- * An array of recent gems
- */
+   * An array of recent gems
+   */
 let recentGems;
 
 /**
- * A map of invoice r_hashes to response objects for clients
- * listening for when those invoices are settled or terminated
- */
+   * A map of invoice r_hashes to response objects for clients
+   * listening for when those invoices are settled or terminated
+   */
 let listeners = {};
 
 // scheduled function to run once a day
 const dailyRule = new schedule.RecurrenceRule();
 dailyRule.hour = 12;
 dailyRule.minute = 0;
-const secretsStream = fs.createWriteStream('public/secrets.txt', {
+const secretsPath = path.join(__dirname, 'public', 'secrets.txt');
+if (!fs.existsSync(secretsPath)) {
+  fs.openSync(secretsPath, 'w');
+}
+const secretsStream = fs.createWriteStream(secretsPath, {
   flags: 'a',
 });
 schedule.scheduleJob(dailyRule, async () => {
@@ -94,30 +87,12 @@ schedule.scheduleJob(dailyRule, async () => {
 });
 
 /**
- * Creates an index on r_hash for invoices if it doesn't exist.
- * Fetches the most recent gem from the database. If no gem
- * exists, it creates one. Also computes lifetime payouts.
- * @returns - A promise that resolves when the gem is initialized
- */
-async function init() {
-  const promises = [];
-  const uriPromise = new Promise((resolve, reject) => {
-    lightning.getInfo({}, meta, (err, response) => {
-      if (err) {
-        logger.error(err);
-        reject(err);
-      } else {
-        resolve(response.uris[0]);
-      }
-    });
-  });
-  promises.push(uriPromise);
-
-  promises.push(db.collection('gems').find().sort({ _id: -1 }).toArray());
-  promises.push(db.collection('invoices').createIndex('r_hash', { unique: true }));
-
-  const [uri, gems] = await Promise.all(promises);
-  lndConnectionString = uri;
+   * Fetches the most recent gem from the database. If no gem
+   * exists, it creates one. Also computes lifetime payouts.
+   * @returns - A promise that resolves when the gem is initialized
+   */
+async function initGem() {
+  const gems = await db.collection('gems').find().sort({ _id: -1 }).toArray();
 
   paidOutSum = 0;
   if (gems[0]) {
@@ -144,10 +119,10 @@ async function init() {
 }
 
 /**
- * Validates an outgoing payment request.
- * @param pay_req_out - The payment request to validate
- * @returns - A promise that resolves when the request is validated.
- */
+   * Validates an outgoing payment request.
+   * @param pay_req_out - The payment request to validate
+   * @returns - A promise that resolves when the request is validated.
+   */
 async function validatePayReq(payReq) {
   if (payReq) {
     const invoiceQuery = {
@@ -181,10 +156,10 @@ async function validatePayReq(payReq) {
 }
 
 /**
- * Adds an invoice to lnd.
- * @param value - The amount in satoshis for the invoice
- * @returns - A promise that resolves when the invoice is added
- */
+   * Adds an invoice to lnd.
+   * @param value - The amount in satoshis for the invoice
+   * @returns - A promise that resolves when the invoice is added
+   */
 function addInvoice(value) {
   return new Promise((resolve, reject) => lightning.addInvoice({
     value,
@@ -273,10 +248,10 @@ app.post('/invoice', urlencodedParser, async (req, res) => {
 });
 
 /**
- * Sends a lightning payment
- * @param payReq - The payment request to pay
- * @returns - A promise that resolves when the payment is sent
- */
+   * Sends a lightning payment
+   * @param payReq - The payment request to pay
+   * @returns - A promise that resolves when the payment is sent
+   */
 function sendPayment(payReq) {
   return new Promise((resolve, reject) => lightning.sendPaymentSync({
     payment_request: payReq,
@@ -292,10 +267,10 @@ function sendPayment(payReq) {
 }
 
 /**
- * Creates a new gem according to the rules of the Lightning
- * Gem, adjusting the price, id, and owner as necessary.
- * @returns - The newly created gem
- */
+   * Creates a new gem according to the rules of the Lightning
+   * Gem, adjusting the price, id, and owner as necessary.
+   * @returns - The newly created gem
+   */
 async function createGem(invoice, oldGem, reset) {
   const newGem = {
     _id: oldGem._id + 1,
@@ -319,10 +294,10 @@ async function createGem(invoice, oldGem, reset) {
 }
 
 /**
- * Send an event to and close a connection.
- * @param event - The event type to send
- * @param rHash - The r_hash corresponding to the listening client
- */
+   * Send an event to and close a connection.
+   * @param event - The event type to send
+   * @param rHash - The r_hash corresponding to the listening client
+   */
 function sendEvent(event, rHash) {
   const listener = listeners[rHash];
   if (listener && !listener.finished) {
@@ -337,11 +312,11 @@ function sendEvent(event, rHash) {
 }
 
 /**
- * Update and close connections with all listening clients
- * after gem purchase.
- * @param r_hash - The r_hash for the invoice that bought the gem
- * @param reset - Whether the gem purchase resulted in a reset
- */
+   * Update and close connections with all listening clients
+   * after gem purchase.
+   * @param r_hash - The r_hash for the invoice that bought the gem
+   * @param reset - Whether the gem purchase resulted in a reset
+   */
 function updateListeners(rHash, reset) {
   if (reset) { sendEvent('reset', rHash); } else { sendEvent('settled', rHash); }
   for (let n = 0; n < listeners.length; n += 1) {
@@ -353,12 +328,12 @@ function updateListeners(rHash, reset) {
 }
 
 /**
- * Creates a new gem and updates all listening clients
- * @param invoice - The invoice database object for the purchase
- * @param r_hash - The r_hash for the invoice that bought the gem
- * @param reset - Whether the gem purchase resulted in a reset
- * @returns - A promise that resolves when the gem purchase is complete
- */
+   * Creates a new gem and updates all listening clients
+   * @param invoice - The invoice database object for the purchase
+   * @param r_hash - The r_hash for the invoice that bought the gem
+   * @param reset - Whether the gem purchase resulted in a reset
+   * @returns - A promise that resolves when the gem purchase is complete
+   */
 async function purchaseGem(invoice, rHash, reset) {
   try {
     const oldGem = gem;
@@ -392,11 +367,11 @@ async function purchaseGem(invoice, rHash, reset) {
 }
 
 /**
- * Handler for updates on lightning invoices
- * @param data - The data from the lightning invoice subscription
- * @returns - A promise that resolves once the invoice is handled
- * and updated, or undefined if the invoice was not settled
- */
+   * Handler for updates on lightning invoices
+   * @param data - The data from the lightning invoice subscription
+   * @returns - A promise that resolves once the invoice is handled
+   * and updated, or undefined if the invoice was not settled
+   */
 async function invoiceHandler(data) {
   if (data.settled) {
     const rHash = data.r_hash.toString('hex');
@@ -447,8 +422,8 @@ async function invoiceHandler(data) {
 }
 
 /**
- * Subscribe to lnd invoice events
- */
+   * Subscribe to lnd invoice events
+   */
 function subscribeInvoices() {
   lightning.subscribeInvoices({}, meta)
     .on('data', invoiceHandler)
@@ -470,7 +445,7 @@ try {
   setInterval(async () => {
     // check for lnd disconnection
     if (!lightning) {
-      lightning = new lnrpcDescriptor.lnrpc.Lightning('127.0.0.1:10009', credentials);
+      lightning = createLightning();
       subscribeInvoices();
     }
     // check for timeout
@@ -490,12 +465,36 @@ try {
 
 subscribeInvoices();
 
-MongoClient.connect(dbUrl).then((connection) => {
+/**
+ * Creates an index on r_hash for invoices if it doesn't exist.
+ */
+async function init(testing) {
+  const connection = await MongoClient.connect(dbUrl);
   db = connection.db(DB_NAME || 'lightninggem');
-  return init();
-}).then(() => {
-  // listen and write logs only when started directly
-  if (!module.parent) {
+
+  const promises = [];
+
+  const uriPromise = new Promise((resolve, reject) => {
+    lightning.getInfo({}, meta, (err, response) => {
+      if (err) {
+        logger.error(err);
+        reject(err);
+      } else {
+        resolve(response.uris[0]);
+      }
+    });
+  });
+  promises.push(uriPromise);
+
+  promises.push(db.collection('invoices').createIndex('r_hash', { unique: true }));
+  promises.push(initGem());
+  const [uri] = await Promise.all(promises);
+  lndConnectionString = uri;
+
+  // don't listen or write logs when initialized by tests
+  if (testing) {
+    logger.clear();
+  } else {
     const tsFormat = () => (new Date()).toLocaleString();
     logger.configure({
       transports: [
@@ -512,15 +511,10 @@ MongoClient.connect(dbUrl).then((connection) => {
 
     logger.level = NODE_ENV === 'development' ? 'debug' : 'info';
     app.listen(LN_GEM_PORT || 8080, () => {
-      logger.info(`App listening on port ${LN_GEM_PORT}`);
+      logger.info(`Lightning Gem listening on port ${LN_GEM_PORT}`);
     });
-  } else {
-    // don't log at all if not started directly
-    logger.clear();
   }
-}).catch((err) => {
-  logger.error(`Error on initialization: ${err}`);
-});
+}
 
 module.exports = {
   app,

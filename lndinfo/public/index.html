@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.6.1/css/bulma.min.css" />
+
+  <link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
+  <title>LN Gem Info</title>
+</head>
+
+<body>
+  <section class="section">
+    <div class="container">
+      <h1 class="title is-1"><a href="https://lightninggem.com">Lightning Gem</a> LND Node Info</h1>
+      <p>Use this page to see information on the Lightning Gem <a href="https://github.com/lightningnetwork/lnd">LND</a> Node as well as the known lightning network. The Lightning Gem is running commit <code>7bbcbc6</code> on the master branch from February 6, 2018.</p>
+    </div>
+  </section>
+  <section class="section" id="app">
+
+    <div class="container">
+      <span class="tag is-light">Server Memory: {{Math.round(mem.free/1048576)}} MB Free / {{Math.round(mem.total/1048576)}} MB Total&nbsp
+        <span @click="refreshMem()" class="icon">
+          <i v-bind:class="{ 'fa-spin': memLoading }" class="fas fa-sync"></i>
+        </span>
+      </span>
+      <div class="field">
+        <label class="label">Select a Call</label>
+        <div class="control">
+          <div class="select">
+            <select v-model="selected">
+                <option></option>
+                <option>GetInfo</option>
+                <option>PendingChannels</option>
+                <option>ListChannels</option>
+                <option>DecodePayReq</option>
+                <option>GetNodeInfo</option>
+                <option>GetNetworkInfo</option>
+              </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="notification is-danger" v-show="showError">
+        <button class="delete" @click="showError=false"></button> Error: {{errorMessage}}
+      </div>
+
+      <div v-show="selected=='GetInfo'">
+        <h3 class="title is-3">GetInfo</h3>
+        <p>GetInfo returns general information concerning the lightning node including its identity pubkey, alias, the chains it is connected to, and information concerning the number of open+pending channels.</p>
+        <div class="field">
+          <div class="control">
+            <a @click="getInfo()" v-bind:class="{ 'is-loading': isLoading }" class="button is-primary">Submit</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Identity Public Key</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.identity_pubkey" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Number of Pending Channels</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.num_pending_channels" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Number of Active Channels</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.num_active_channels" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Number of Peers</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.num_peers" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Block Height</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.block_height" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Block Hash</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getInfoResult.block_hash" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Raw JSON</label>
+          <div class="control">
+            <textarea class="textarea" rows="13" readonly>{{JSON.stringify(getInfoResult, null, "  ")}}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="selected=='PendingChannels'">
+        <h3 class="title is-3">Pending Channels</h3>
+        <p>PendingChannels returns a list of all the channels that are currently considered “pending”. A channel is pending if it has finished the funding workflow and is waiting for confirmations for the funding txn, or is in the process of closure, either initiated cooperatively or non-cooperatively.</p>
+        <div class="field">
+          <div class="control">
+            <a @click="pendingChannels()" v-bind:class="{ 'is-loading': isLoading }" class="button is-primary">Submit</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Raw JSON</label>
+          <div class="control">
+            <textarea class="textarea" rows="13" readonly>{{JSON.stringify(pendingChannelsResult, null, "  ")}}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="selected=='ListChannels'">
+        <h3 class="title is-3">List Channels</h3>
+        <p>ListChannels returns a description of all the open channels that this node is a participant in.</p>
+        <div class="field">
+          <div class="control">
+            <a @click="listChannels()" v-bind:class="{ 'is-loading': isLoading }" class="button is-primary">Submit</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Raw JSON</label>
+          <div class="control">
+            <textarea class="textarea" rows="13" readonly>{{JSON.stringify(listChannelsResult, null, "  ")}}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="selected=='DecodePayReq'">
+        <h3 class="title is-3">Decode Pay Req</h3>
+        <p>DecodePayReq takes an encoded payment request string and attempts to decode it, returning a full description of the conditions encoded within the payment request.</p>
+        <div class="field">
+          <label class="label">Payment Request</label>
+          <div class="control">
+            <input class="input" type="text" v-model="paymentRequest">
+          </div>
+        </div>
+        <div class="field">
+          <div class="control">
+            <a @click="decodePayReq()" v-bind:class="{ 'is-loading': isLoading }" class="button is-primary">Submit</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Destination</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.destination" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Payment Hash</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.payment_hash" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Amount (Satoshis)</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.num_satoshis" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Timestamp</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.timestamp ? new Date(parseInt(decodePayReqResult.timestamp) * 1000).toLocaleString() : ''" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Expiry</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.expiry" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Description</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.description" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">CLTV Expiry</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="decodePayReqResult.cltv_expiry" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Raw JSON</label>
+          <div class="control">
+            <textarea class="textarea" rows="13" readonly>{{JSON.stringify(decodePayReqResult, null, "  ")}}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="selected=='GetNodeInfo'">
+        <h3 class="title is-3">Get Node Info</h3>
+        <p>GetNodeInfo returns the latest advertised, aggregated, and authenticated channel information for the specified node identified by its public key.</p>
+        <div class="field">
+          <label class="label">Public Key</label>
+          <div class="control">
+            <input class="input" type="text" v-model="publicKey">
+          </div>
+        </div>
+        <div class="field">
+          <div class="control">
+            <a @click="getNodeInfo()" v-bind:class="{ 'is-loading': isLoading }" class="button is-primary">Submit</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Number of Channels</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getNodeInfoResult.num_channels" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Total Capacity (Satoshis)</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getNodeInfoResult.total_capacity" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Raw JSON</label>
+          <div class="control">
+            <textarea class="textarea" rows="13" readonly>{{JSON.stringify(getNodeInfoResult, null, "  ")}}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="selected=='GetNetworkInfo'">
+        <h3 class="title is-3">Get Network Info</h3>
+        <p>GetNetworkInfo returns some basic stats about the known channel graph from the point of view of the node.</p>
+        <div class="field">
+          <div class="control">
+            <a @click="getNetworkInfo()" v-bind:class="{ 'is-loading': isLoading }" class="button is-primary">Submit</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Number of Nodes</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getNetworkInfoResult.num_nodes" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Number of Channels</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getNetworkInfoResult.num_channels" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Total Capacity (Satoshis)</label>
+          <div class="control">
+            <input class="input" type="text" v-bind:value="getNetworkInfoResult.total_network_capacity" readonly>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Raw JSON</label>
+          <div class="control">
+            <textarea class="textarea" rows="13" readonly>{{JSON.stringify(getNetworkInfoResult, null, "  ")}}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://vuejs.org/js/vue.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-resource/1.3.4/vue-resource.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>
