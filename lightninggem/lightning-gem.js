@@ -146,7 +146,7 @@ async function validatePayReq(payReq) {
       } else if (parseInt(response.num_satoshis, 10) !== Math.round(gem.price * 1.25)) {
         reject(new Error('Invalid payment request value'));
       } else if (response.expiry < 43200) {
-        reject(new Error('Invalid payment request value'));
+        reject(new Error('Invalid expiry'));
       } else {
         resolve(true);
       }
@@ -288,7 +288,9 @@ async function createGem(invoice, oldGem, reset) {
   await db.collection('gems').insertOne(newGem);
   logger.info(`new gem: ${JSON.stringify(newGem)}`);
   recentGems.unshift(newGem);
-  recentGems.pop();
+  if (recentGems.length > RECENT_GEMS_MAX) {
+    recentGems.pop();
+  }
 
   return newGem;
 }
