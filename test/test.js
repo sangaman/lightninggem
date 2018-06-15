@@ -44,7 +44,7 @@ describe('LightningGem', () => {
       name: 'mocha',
       gem_id: 1,
     };
-process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
+    process.env.GRPC_SSL_CIPHER_SUITES = 'HIGH+ECDSA';
     return request(app)
       .post('/invoice')
       .set('Accept', 'application/json')

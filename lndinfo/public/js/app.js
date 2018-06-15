@@ -1,3 +1,5 @@
+/* eslint-disable */
+
 var vm = new Vue({
   el: '#app',
   data: {
