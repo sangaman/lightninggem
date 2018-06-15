@@ -258,8 +258,6 @@ function sendPayment(payReq) {
   }, meta, (err, response) => {
     if (err) {
       reject(err);
-    } else if (response.payment_error) {
-      reject(new Error(response.payment_error));
     } else {
       resolve(response);
     }
@@ -346,22 +344,22 @@ async function purchaseGem(invoice, rHash, reset) {
     if (reset) {
       oldGem.reset = true;
     }
-
+    await db.collection('gems').replaceOne({
+      _id: oldGem._id,
+    }, oldGem);
     updateListeners(rHash, reset);
 
-    try {
-      if (oldGem.pay_req_out && !reset) {
-        const paymentResponse = await sendPayment(oldGem.pay_req_out);
-        logger.debug(`payment response: ${JSON.stringify(paymentResponse)}`);
+    if (oldGem.pay_req_out && !reset) {
+      const paymentResponse = await sendPayment(oldGem.pay_req_out);
+      logger.debug(`payment response: ${JSON.stringify(paymentResponse)}`);
+      if (!paymentResponse.payment_error) {
         oldGem.paid_out = true;
         paidOutSum += Math.round(oldGem.price * 1.25);
         logger.info(`paid ${oldGem.pay_req_out}`);
+        await db.collection('gems').replaceOne({
+          _id: oldGem._id,
+        }, oldGem);
       }
-    } finally {
-      // we want to update the old gem even if the sendpayment call above fails
-      await db.collection('gems').replaceOne({
-        _id: oldGem._id,
-      }, oldGem);
     }
   } catch (err) {
     logger.error(err);
