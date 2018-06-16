@@ -10,7 +10,7 @@ const { MongoClient } = require('mongodb');
 const createLightning = require('../lightning/create-lightning');
 const meta = require('../lightning/meta');
 
-const RECENT_GEMS_MAX = 6;
+const RECENT_GEMS_MAX = 16;
 
 const {
   LN_GEM_PORT,
@@ -45,19 +45,24 @@ app.use(helmet());
 let db;
 
 /**
-   * The current gem containing the owner's details
-   */
+ * The current gem containing the owner's details
+ */
 let gem;
 
 /**
-   * The sum of all outgoing payments
-   */
+ * The sum of all outgoing payments
+ */
 let paidOutSum;
 
 /**
-   * An array of recent gems
-   */
+ * An array of recent gems
+ */
 let recentGems;
+
+/**
+ * The most expensive gem
+ */
+let topGem;
 
 /**
    * A map of invoice r_hashes to response objects for clients
@@ -104,6 +109,9 @@ async function initGem() {
       }
       if (n < RECENT_GEMS_MAX) {
         recentGems.push(gems[n]);
+      }
+      if (!topGem || gems[n].price > topGem.price) {
+        topGem = gems[n];
       }
     }
   } else {
@@ -184,6 +192,7 @@ app.get('/status', (req, res) => {
     recentGems,
     paidOutSum,
     lndConnectionString,
+    topGem,
   });
 });
 
@@ -284,6 +293,9 @@ async function createGem(invoice, oldGem, reset) {
   }
 
   await db.collection('gems').insertOne(newGem);
+  if (!topGem || newGem.price > topGem.price) {
+    topGem = newGem;
+  }
   logger.info(`new gem: ${JSON.stringify(newGem)}`);
   recentGems.unshift(newGem);
   if (recentGems.length > RECENT_GEMS_MAX) {
@@ -354,6 +366,7 @@ async function purchaseGem(invoice, rHash, reset) {
       logger.debug(`payment response: ${JSON.stringify(paymentResponse)}`);
       if (!paymentResponse.payment_error) {
         oldGem.paid_out = true;
+        oldGem.preimage = paymentResponse.payment_preimage.toString('hex');
         paidOutSum += Math.round(oldGem.price * 1.25);
         logger.info(`paid ${oldGem.pay_req_out}`);
         await db.collection('gems').replaceOne({

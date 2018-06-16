@@ -53,6 +53,10 @@ function refresh() {
     $("[name=lnd_connection_string]").text(status.lndConnectionString);
     gem_id = gem._id;
 
+    $("#top_owner").text(status.topGem.owner);
+    $("#top_price").text((status.topGem.price / 100).toLocaleString() + ' bits');
+    $("#top_date").text(new Date(status.topGem.date).toLocaleDateString());
+
     var recentGemsHtml = "";
     $.each(status.recentGems.slice(1), function (index, value) {
       recentGemsHtml += "<tr><td>";
