@@ -1,6 +1,7 @@
-/* eslint-disable */
+/* globals Vue */
+/* eslint-disable no-console */
 
-var vm = new Vue({
+let vm = new Vue({ /* eslint-disable-line prefer-const, no-unused-vars */
   el: '#app',
   data: {
     selected: '',
@@ -20,74 +21,50 @@ var vm = new Vue({
     mem: {},
     memLoading: false,
   },
-  created: function() {
+  created() {
     this.refreshMem();
   },
   methods: {
-    refreshMem: function() {
+    refreshMem() {
       this.memLoading = true;
-      this.$http.get('/mem').then(function(response) {
+      this.$http.get('/mem').then((response) => {
         this.mem = response.body;
         this.memLoading = false;
       }, this.errorHandler);
     },
-    getInfo: function() {
+    async rpcCall(endpoint, payload) {
+      const rpcEndpoint = `/rpc/${endpoint}`;
       this.isLoading = true;
-      this.$http.get('/rpc/getinfo').then(function(response) {
-        this.getInfoResult = response.body;
+      try {
+        let response;
+        if (payload) {
+          response = await this.$http.post(rpcEndpoint, payload);
+        } else {
+          response = await this.$http.get(rpcEndpoint);
+        }
         this.isLoading = false;
         this.showError = false;
-      }, this.errorHandler);
-    },
-    pendingChannels: function() {
-      this.isLoading = true;
-      this.$http.get('/rpc/pendingchannels').then(function(response) {
-        this.pendingChannelsResult = response.body;
+        return response.body;
+      } catch (err) {
+        this.errorMessage = err.body;
+        this.showError = true;
         this.isLoading = false;
-        this.showError = false;
-      }, this.errorHandler);
+        console.error(err);
+        return {};
+      }
     },
-    listChannels: function() {
-      this.isLoading = true;
-      this.$http.get('/rpc/listchannels').then(function(response) {
-        this.listChannelsResult = response.body;
-        this.isLoading = false;
-        this.showError = false;
-      }, this.errorHandler);
+    async getInfo() {
+      this.getInfoResult = await this.rpcCall('getinfo');
     },
-    decodePayReq: function() {
-      this.isLoading = true;
-      this.$http.post('/rpc/decodepayreq', {
-        paymentRequest: this.paymentRequest
-      }).then(function(response) {
-        this.decodePayReqResult = response.body;
-        this.isLoading = false;
-        this.showError = false;
-      }, this.errorHandler);
+    async pendingChannels() {
+      this.pendingChannelsResult = await this.rpcCall('pendingchannels');
     },
-    getNodeInfo: function() {
-      this.isLoading = true;
-      this.$http.post('/rpc/getnodeinfo', {
-        publicKey: this.publicKey
-      }).then(function(response) {
-        this.getNodeInfoResult = response.body;
-        this.isLoading = false;
-        this.showError = false;
-      }, this.errorHandler);
+    async listChannels() {
+      this.listChannelsResult = await this.rpcCall('listchannels');
     },
-    getNetworkInfo: function() {
-      this.isLoading = true;
-      this.$http.get('/rpc/getnetworkinfo').then(function(response) {
-        this.getNetworkInfoResult = response.body;
-        this.isLoading = false;
-        this.showError = false;
-      }, this.errorHandler);
+    async decodePayReq() {
+      this.decodePayReqResult = await this.rpcCall('decodepayreq', {
+        paymentRequest: this.paymentRequest,
+      });
     },
-    errorHandler: function(err) {
-      this.errorMessage = err.body;
-      this.showError = true;
-      this.isLoading = false;
-      console.error(err);
-    }
-  }
 });
