@@ -117,6 +117,25 @@ app.get('/rpc/getnetworkinfo', (req, res) => {
   }
 });
 
+app.post('/rpc/lookupinvoice', jsonParser, (req, res) => {
+  lightning.lookupInvoice({
+    r_hash_str: req.body.paymentHash,
+  }, meta, responseHandler.bind(res));
+});
+
+app.post('/rpc/addinvoice', jsonParser, (req, res) => {
+  lightning.addInvoice({
+    value: req.body.value,
+  }, meta, responseHandler.bind(res));
+});
+
+app.post('/rpc/queryroutes', jsonParser, (req, res) => {
+  lightning.queryRoutes({
+    pub_key: req.body.publicKey,
+    amt: req.body.amount,
+  }, meta, responseHandler.bind(res));
+});
+
 async function init() {
   app.listen(LN_INFO_PORT, () => {
     logger.info(`LND Info listening on port ${LN_INFO_PORT}`);
