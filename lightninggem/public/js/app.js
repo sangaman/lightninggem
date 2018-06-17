@@ -50,7 +50,14 @@ function refresh() {
     $(".payout").text((Math.round(1.25 * price) / 100).toLocaleString());
     $("#payout_sats").text(Math.round(1.25 * price));
     $("#new_price").text((Math.round(price * 1.3) / 100).toLocaleString());
+
     $("[name=lnd_connection_string]").text(status.lndConnectionString);
+    new QRious({
+      element: document.getElementById('qr_connect'),
+      value: status.lndConnectionString,
+      size: 250
+    });
+
     gem_id = gem._id;
 
     $("#top_owner").text(status.topGem.owner);
