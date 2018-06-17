@@ -246,10 +246,10 @@ app.post('/invoice', urlencodedParser, async (req, res) => {
       res.status(200).json(responseBody);
     } catch (err) {
       if (err.status) {
-        logger.error(err.message);
+        logger.warn(err.message);
         res.status(err.status).send(err.message);
       } else {
-        logger.error(err);
+        logger.debug(err);
         res.status(400).send(err.message);
       }
     }
