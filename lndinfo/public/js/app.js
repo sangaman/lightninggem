@@ -2,9 +2,9 @@
 /* eslint-disable no-console */
 
 function toHexString(byteArray) {
-  return Array.prototype.map.call(byteArray, (byte) => {
-    return (`0${(byte & 0xFF).toString(16)}`).slice(-2); /* eslint-disable-line no-bitwise */
-  }).join('');
+  return Array.prototype.map.call(byteArray, byte =>
+    (`0${(byte & 0xFF).toString(16)}`).slice(-2)) /* eslint-disable-line no-bitwise */
+    .join('');
 }
 
 let vm = new Vue({ /* eslint-disable-line prefer-const, no-unused-vars */
@@ -103,7 +103,11 @@ let vm = new Vue({ /* eslint-disable-line prefer-const, no-unused-vars */
       this.lookupInvoiceResult = await this.rpcCall('lookupinvoice', {
         paymentHash: this.paymentHash,
       });
-      this.preimageResult = toHexString(new Uint8Array(this.lookupInvoiceResult.r_preimage.data));
+      if (this.lookupInvoiceResult.settled) {
+        this.preimageResult = toHexString(new Uint8Array(this.lookupInvoiceResult.r_preimage.data));
+      } else {
+        this.preimageResult = '';
+      }
     },
     async addInvoice() {
       this.addInvoiceResult = await this.rpcCall('addinvoice', {

@@ -84,6 +84,12 @@ app.get('/rpc/listchannels', (req, res) => {
         logger.error(err);
         res.status(500).send(err);
       } else {
+        for (let n = 0; n < response.channels.length; n += 1) {
+          response.channels[n].local_balance = undefined;
+          response.channels[n].remote_balance = undefined;
+          response.channels[n].total_satoshis_sent = undefined;
+          response.channels[n].total_satoshis_received = undefined;
+        }
         cache.put('listchannels', response, 30 * 1000);
         res.status(200).json(response);
       }
@@ -120,7 +126,17 @@ app.get('/rpc/getnetworkinfo', (req, res) => {
 app.post('/rpc/lookupinvoice', jsonParser, (req, res) => {
   lightning.lookupInvoice({
     r_hash_str: req.body.paymentHash,
-  }, meta, responseHandler.bind(res));
+  }, meta, (err, response) => {
+    if (err) {
+      logger.error(err);
+      res.status(500).send(err);
+    } else {
+      if (!response.settled) {
+        response.r_preimage = undefined;
+      }
+      res.status(200).json(response);
+    }
+  });
 });
 
 app.post('/rpc/addinvoice', jsonParser, (req, res) => {
