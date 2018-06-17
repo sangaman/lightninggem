@@ -159,7 +159,7 @@
       <div class="title">
         <h4>All-Time Most Valuable Gem</h4>
       </div>
-      <p>The most valuable gem had a price of <strong id="top_price"></strong> and was purchased by <strong><a id="top_owner"></a></strong> on <strong id="top_date"></strong>.</p>
+      <p>The most valuable gem had a price of <strong id="top_price"></strong> and was owned by <strong><a id="top_owner"></a></strong> on <strong id="top_date"></strong>.</p>
     </div>
   </section>
   <section class="row">
@@ -203,13 +203,15 @@
         <a href="https://github.com/bitcoin/bips/blob/master/bip-0176.mediawiki">BIP176</a>, is 1 millionth of a bitcoin - or 100 satoshis.</p>
       <h5>What happens if I send payment but someone buys the gem before me?</h5>
       <p>The website will automatically indicate if someone else buys the gem after you have submitted a request to buy the
-        gem, so if you check this page before submitting your payment you can prevent this from happening. If it happens
+        gem, so if you check this page before submitting your payment you can prevent this from happening. If you pay a stale invoice by mistake
         anyway,
         <a href="mailto:bitcoingem@gmail.com">e-mail us</a> for a refund.</p>
       <h5>Someone bought the gem from me, but I didn't get paid!</h5>
-      <p>We probably weren't able to pay your invoice - either your lightning node went offline or we couldn't find a path to
-        you.
-        <a href="mailto:bitcoingem@gmail.com">E-mail us</a> and we'll pay you manually.</p>
+      <p>We probably weren't able to pay your invoice - either your lightning node went offline, or we couldn't find a path to
+        you, or a path exists but there's not enough balance in any of your active channels to cover your payout.
+        <a href="mailto:bitcoingem@gmail.com">E-mail us</a> if this happens and we'll pay you manually. <em>Note:</em> you can check if our node is
+        able to pay you by checking our <a href="https://info.lightninggem.com">info page</a> and seeing if <code>QuerySwapRoutes</code> finds a route
+        for your payout.</p>
       <h5>I bought the gem but changed my mind, can you refund me?</h5>
       <p>Once you are the owner of the gem, we can't refund you because the previous owner already will already have been paid.</p>
       <h5>Who are you, and why should I trust you?</h5>
