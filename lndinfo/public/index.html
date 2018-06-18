@@ -142,6 +142,12 @@
             </div>
           </div>
           <div class="field">
+            <label class="label">Total Capacity (₿)</label>
+            <div class="control">
+              <input class="input" type="text" v-bind:value="totalCapacity" readonly>
+            </div>
+          </div>
+          <div class="field">
             <label class="label">Raw JSON</label>
             <div class="control">
               <textarea class="textarea" rows="13" readonly>{{JSON.stringify(listChannelsResult, null, "  ")}}</textarea>

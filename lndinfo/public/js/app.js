@@ -17,6 +17,7 @@ let vm = new Vue({ /* eslint-disable-line prefer-const, no-unused-vars */
     listChannelsResult: {},
     activeChannelCount: 0,
     inactiveChannelCount: 0,
+    totalCapacity: 0,
     paymentHash: '',
     lookupInvoiceResult: {},
     preimageResult: '',
@@ -78,7 +79,9 @@ let vm = new Vue({ /* eslint-disable-line prefer-const, no-unused-vars */
       this.listChannelsResult = await this.rpcCall('listchannels');
       this.activeChannelCount = 0;
       this.inactiveChannelCount = 0;
+      this.totalCapacity = 0;
       for (let n = 0; n < this.listChannelsResult.channels.length; n += 1) {
+        this.totalCapacity += this.listChannelsResult.channels[n].capacity / 100000000;
         if (this.listChannelsResult.channels[n].active) {
           this.activeChannelCount += 1;
         } else {
